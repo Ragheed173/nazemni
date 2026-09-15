@@ -7,3 +7,4 @@ apps/api/prisma/dev.db*
 .sites-runtime/
 .wrangler/
 .pgdata/
+*.tsbuildinfo
