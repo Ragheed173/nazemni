@@ -1,0 +1,232 @@
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { api, mutations } from '../api';
+import { courseName, formatDate } from '../lib';
+import type { Course, EntityRecord } from '../types';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EmptyState, ErrorState, LoadingState } from '../components/PageState';
+import { StatusBadge } from '../components/StatusBadge';
+
+type Field = {
+  key: string;
+  label: string;
+  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox';
+  required?: boolean;
+  options?: string[];
+  defaultValue?: string | number | boolean;
+};
+
+export type EntityConfig = {
+  resource: string;
+  translationKey: string;
+  fields: Field[];
+  titleKey?: string;
+  statusKey?: string;
+  dateKey?: string;
+  progressKey?: string;
+};
+
+export const entityConfigs: Record<string, EntityConfig> = {
+  lectures: {
+    resource: '/lectures', translationKey: 'lectures', titleKey: 'title', statusKey: 'state', dateKey: 'lectureDate',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'number', label: 'entities.lectures.number', type: 'number', required: true },
+      { key: 'title', label: 'common.title', required: true },
+      { key: 'lectureDate', label: 'entities.lectures.lectureDate', type: 'date', required: true },
+      { key: 'state', label: 'entities.lectures.state', type: 'select', options: ['TAKEN_NOT_STUDIED', 'STUDIED', 'NEEDS_REVIEW', 'MASTERED'], defaultValue: 'TAKEN_NOT_STUDIED' },
+      { key: 'understandingScore', label: 'entities.lectures.understanding', type: 'number' },
+      { key: 'needsReview', label: 'entities.lectures.needsReview', type: 'checkbox' },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+  tasks: {
+    resource: '/tasks', translationKey: 'tasks', titleKey: 'title', statusKey: 'status', dateKey: 'dueAt',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'title', label: 'common.title', required: true },
+      { key: 'description', label: 'entities.tasks.description', type: 'textarea' },
+      { key: 'type', label: 'common.type', type: 'select', options: ['LECTURE', 'REVIEW', 'ASSIGNMENT', 'PROJECT', 'EXAM_PREP', 'PRACTICE', 'OTHER'], defaultValue: 'OTHER' },
+      { key: 'priority', label: 'entities.tasks.priority', type: 'select', options: ['CRITICAL', 'IMPORTANT', 'OPTIONAL'], defaultValue: 'IMPORTANT' },
+      { key: 'dueAt', label: 'entities.tasks.dueAt', type: 'date' },
+      { key: 'estimatedEffort', label: 'entities.tasks.effort', type: 'number' },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+  assignments: {
+    resource: '/assignments', translationKey: 'assignments', titleKey: 'title', statusKey: 'status', dateKey: 'officialDeadline', progressKey: 'progress',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'title', label: 'common.title', required: true },
+      { key: 'description', label: 'entities.tasks.description', type: 'textarea' },
+      { key: 'officialDeadline', label: 'entities.assignments.officialDeadline', type: 'date', required: true },
+      { key: 'internalDeadline', label: 'entities.assignments.internalDeadline', type: 'date' },
+      { key: 'weight', label: 'entities.assignments.weight', type: 'number' },
+      { key: 'progress', label: 'entities.assignments.progress', type: 'number', defaultValue: 0 },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+  projects: {
+    resource: '/projects', translationKey: 'projects', titleKey: 'name', statusKey: 'status', dateKey: 'officialDeadline', progressKey: 'progress',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'name', label: 'common.title', required: true },
+      { key: 'description', label: 'entities.tasks.description', type: 'textarea' },
+      { key: 'startDate', label: 'common.date', type: 'date' },
+      { key: 'officialDeadline', label: 'entities.projects.officialDeadline', type: 'date', required: true },
+      { key: 'internalDeadline', label: 'entities.projects.internalDeadline', type: 'date' },
+      { key: 'weight', label: 'entities.projects.weight', type: 'number' },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+      { key: 'addDefaultMilestones', label: 'entities.projects.milestones', type: 'checkbox', defaultValue: true },
+    ],
+  },
+  exams: {
+    resource: '/exams', translationKey: 'exams', titleKey: 'title', statusKey: 'preparationStatus', dateKey: 'date',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'title', label: 'common.title', required: true },
+      { key: 'type', label: 'common.type', type: 'select', options: ['QUIZ', 'MIDTERM', 'FINAL'], defaultValue: 'MIDTERM' },
+      { key: 'date', label: 'entities.exams.examDate', type: 'date', required: true },
+      { key: 'weight', label: 'entities.exams.weight', type: 'number' },
+      { key: 'confidenceLevel', label: 'entities.exams.confidence', type: 'number' },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+  grades: {
+    resource: '/grades', translationKey: 'grades', titleKey: 'title', statusKey: 'assessmentType', dateKey: 'date',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'title', label: 'common.title', required: true },
+      { key: 'assessmentType', label: 'common.type', type: 'select', options: ['QUIZ', 'ASSIGNMENT', 'PROJECT', 'MIDTERM', 'FINAL', 'PARTICIPATION', 'OTHER'], defaultValue: 'QUIZ' },
+      { key: 'score', label: 'entities.grades.score', type: 'number', required: true },
+      { key: 'maximumScore', label: 'entities.grades.maximum', type: 'number', required: true },
+      { key: 'weight', label: 'entities.grades.weight', type: 'number' },
+      { key: 'date', label: 'common.date', type: 'date', required: true },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+  'weak-topics': {
+    resource: '/weak-topics', translationKey: 'weakTopics', titleKey: 'topic', statusKey: 'severity',
+    fields: [
+      { key: 'courseId', label: 'common.course', type: 'select', required: true },
+      { key: 'topic', label: 'entities.weakTopics.topic', required: true },
+      { key: 'description', label: 'entities.tasks.description', type: 'textarea' },
+      { key: 'severity', label: 'entities.weakTopics.severity', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'], defaultValue: 'MEDIUM' },
+      { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+  },
+};
+
+export function EntityPage({ config }: { config: EntityConfig }) {
+  const { t, i18n } = useTranslation();
+  const client = useQueryClient();
+  const [search, setSearch] = useSearchParams();
+  const [addOpen, setAddOpen] = useState(search.get('add') === '1');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const courseId = search.get('courseId');
+  const query = useQuery({
+    queryKey: [config.resource, courseId],
+    queryFn: async () => {
+      const data = await api<EntityRecord[] | { grades: EntityRecord[] }>(config.resource + (courseId ? '?courseId=' + courseId : ''));
+      return Array.isArray(data) ? data : data.grades;
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => mutations.remove(config.resource, id),
+    onSuccess: () => { toast.success(t('common.deleted')); void client.invalidateQueries(); setDeleteId(null); },
+  });
+  const title = t('entities.' + config.translationKey + '.title');
+  useEffect(() => {
+    if (search.get('add') === '1') {
+      setAddOpen(true);
+      search.delete('add');
+      setSearch(search, { replace: true });
+    }
+  }, [search, setSearch]);
+  if (query.isLoading) return <LoadingState />;
+  if (query.isError || !query.data) return <ErrorState retry={() => void query.refetch()} />;
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div><h1>{title}</h1></div>
+        <button className="button primary" onClick={() => setAddOpen(true)}>{t('entities.' + config.translationKey + '.add')}</button>
+      </div>
+      {config.translationKey === 'grades' && <p className="notice">{t('entities.grades.incomplete')}</p>}
+      <section className="section table-section">
+        {query.data.length ? <div className="entity-table">
+          <div className="table-head">
+            <span>{t('common.title')}</span><span>{t('common.course')}</span>
+            <span>{t('common.status')}</span><span>{t('common.date')}</span><span>{t('common.actions')}</span>
+          </div>
+          {query.data.map((item) => (
+            <div className="table-row" key={item.id}>
+              <div><strong>{String(item[config.titleKey ?? 'title'])}</strong>{config.progressKey && <small>{t('common.progress')}: {item[config.progressKey]}%</small>}{config.translationKey === 'grades' && <small>{item.score}/{item.maximumScore} · {Math.round(item.score / item.maximumScore * 100)}%</small>}</div>
+              <span className="course-cell">{item.course ? courseName(item.course, i18n.language) : '—'}</span>
+              <StatusBadge value={String(item[config.statusKey ?? 'status'] ?? '')} />
+              <time>{config.dateKey && item[config.dateKey] ? formatDate(item[config.dateKey], i18n.language) : '—'}</time>
+              <div className="row-actions">
+                {config.translationKey === 'tasks' && item.status !== 'COMPLETED' && <button onClick={() => void mutations.update('/tasks', item.id, { status: 'COMPLETED' }).then(() => client.invalidateQueries())}>{t('plan.markComplete')}</button>}
+                {config.translationKey === 'weakTopics' && !item.resolved && <button onClick={() => void mutations.update('/weak-topics', item.id, { resolved: true }).then(() => client.invalidateQueries())}>{t('entities.weakTopics.resolve')}</button>}
+                <button className="danger-text" onClick={() => setDeleteId(item.id)}>{t('common.delete')}</button>
+              </div>
+            </div>
+          ))}
+        </div> : <EmptyState />}
+      </section>
+      <EntityForm open={addOpen} onClose={() => setAddOpen(false)} config={config} initialCourseId={courseId} />
+      <ConfirmDialog open={Boolean(deleteId)} onClose={() => setDeleteId(null)} onConfirm={() => deleteId && remove.mutate(deleteId)} />
+    </div>
+  );
+}
+
+function EntityForm({ open, onClose, config, initialCourseId }: { open: boolean; onClose: () => void; config: EntityConfig; initialCourseId: string | null }) {
+  const { t, i18n } = useTranslation();
+  const client = useQueryClient();
+  const defaults = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, field.key === 'courseId' && initialCourseId ? initialCourseId : field.defaultValue ?? (field.type === 'checkbox' ? false : '')])), [config, initialCourseId]);
+  const [form, setForm] = useState<Record<string, unknown>>(defaults);
+  const courses = useQuery({ queryKey: ['courses'], queryFn: () => api<Course[]>('/courses'), enabled: open });
+  const create = useMutation({
+    mutationFn: () => mutations.create(config.resource, clean(form)),
+    onSuccess: () => { toast.success(t('common.success')); void client.invalidateQueries(); setForm(defaults); onClose(); },
+    onError: (error) => toast.error(error.message),
+  });
+  if (!open) return null;
+  const submit = (event: FormEvent) => { event.preventDefault(); create.mutate(); };
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onMouseDown={(e) => e.stopPropagation()}>
+        <h2 id="entity-form-title">{t('entities.' + config.translationKey + '.add')}</h2>
+        <form onSubmit={submit} className="entity-form">
+          {config.fields.map((field) => (
+            <label className={'field ' + (field.type === 'textarea' ? 'full-field' : '')} key={field.key}>
+              <span>{t(field.label)}{!field.required && field.type !== 'checkbox' && <small> ({t('common.optional')})</small>}</span>
+              {field.key === 'courseId' ? (
+                <select required value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}>
+                  <option value="">—</option>{courses.data?.map((course) => <option key={course.id} value={course.id}>{courseName(course, i18n.language)}</option>)}
+                </select>
+              ) : field.type === 'select' ? (
+                <select required={field.required} value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}>
+                  {field.options?.map((option) => <option key={option} value={option}>{t('states.' + option, { defaultValue: option })}</option>)}
+                </select>
+              ) : field.type === 'textarea' ? (
+                <textarea value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
+              ) : field.type === 'checkbox' ? (
+                <input type="checkbox" checked={Boolean(form[field.key])} onChange={(e) => setForm({ ...form, [field.key]: e.target.checked })} />
+              ) : (
+                <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 0 : undefined} step={field.type === 'number' ? 'any' : undefined} value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
+              )}
+            </label>
+          ))}
+          <div className="dialog-actions full-field"><button type="button" className="button secondary" onClick={onClose}>{t('common.cancel')}</button><button className="button primary" disabled={create.isPending}>{t('common.save')}</button></div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function clean(input: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ''));
+}
