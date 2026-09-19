@@ -5,10 +5,14 @@ export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
+  title,
+  confirmLabel,
 }: {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  title?: string;
+  confirmLabel?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { t } = useTranslation();
@@ -19,10 +23,10 @@ export function ConfirmDialog({
   return (
     <dialog ref={ref} className="dialog" onClose={onClose}>
       <form method="dialog">
-        <h2>{t('common.confirmDelete')}</h2>
+        <h2>{title ?? t('common.confirmDelete')}</h2>
         <div className="dialog-actions">
           <button className="button secondary" value="cancel">{t('common.cancel')}</button>
-          <button className="button danger-button" value="confirm" onClick={onConfirm}>{t('common.yesDelete')}</button>
+          <button className="button danger-button" value="confirm" onClick={onConfirm}>{confirmLabel ?? t('common.yesDelete')}</button>
         </div>
       </form>
     </dialog>

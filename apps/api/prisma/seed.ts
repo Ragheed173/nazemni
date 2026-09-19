@@ -1,63 +1,87 @@
 import { PrismaClient } from '@prisma/client';
 import { priorityWeights } from '@nazemni/shared';
+import { currentSemesterCourses, currentSemesterSchedule } from '../src/data/current-semester.js';
+import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
-const courses = [
-  { code: 'NET', nameEn: 'Computer Networks', nameAr: 'شبكات الحاسوب', difficulty: 9, credits: 3, retake: true, previousGrade: 0, replacementEffect: true },
-  { code: 'TOC', nameEn: 'Theory of Computation', nameAr: 'نظرية الحسابات', difficulty: 6, credits: 3, retake: true, previousGrade: 0.75, replacementEffect: true },
-  { code: 'BDE', nameEn: 'Big Data Engineering', nameAr: 'هندسة البيانات الضخمة', difficulty: 9, credits: 3, retake: false, previousGrade: null, replacementEffect: false },
-  { code: 'CYB', nameEn: 'Cybersecurity', nameAr: 'الأمن في الفضاء الإلكتروني', difficulty: 8, credits: 3, retake: false, previousGrade: null, replacementEffect: false },
-  { code: 'ENG102', nameEn: 'English 102 / Virtual Exchange', nameAr: 'لغة إنجليزية (2) - تبادل افتراضي', difficulty: 5, credits: 3, retake: false, previousGrade: null, replacementEffect: false, specialNote: 'No Midterm' },
-  { code: 'INN', nameEn: 'Innovation & Entrepreneurship', nameAr: 'الابتكار وريادة الأعمال', difficulty: 5, credits: 3, retake: false, previousGrade: null, replacementEffect: false, specialNote: 'No Midterm' },
-] as const;
-
-const schedule = [
-  ['INN', 0, '09:00', '10:00', false], ['CYB', 0, '10:00', '11:00', false],
-  ['TOC', 0, '12:00', '13:00', false], ['NET', 0, '13:00', '14:00', false],
-  ['ENG102', 1, '09:00', '10:00', true], ['BDE', 1, '10:00', '11:00', true],
-  ['INN', 2, '09:00', '10:00', false], ['CYB', 2, '10:00', '11:00', false],
-  ['TOC', 2, '12:00', '13:00', false], ['NET', 2, '13:00', '14:00', false],
-  ['ENG102', 3, '10:00', '12:00', false], ['BDE', 3, '12:00', '14:00', false],
-  ['INN', 4, '09:00', '10:00', true], ['CYB', 4, '10:00', '11:00', true],
-  ['TOC', 4, '12:00', '13:00', true], ['NET', 4, '13:00', '14:00', true],
-] as const;
-
 async function main() {
+  const seedPassword = process.env.SEED_OWNER_PASSWORD;
+  if (!seedPassword || seedPassword.length < 10) throw new Error('SEED_OWNER_PASSWORD must be at least 10 characters');
+  const ownerEmail = (process.env.SEED_OWNER_EMAIL ?? 'developer@example.test').toLowerCase();
+  const owner = await prisma.user.upsert({
+    where: { email: ownerEmail },
+    update: { role: 'ADMIN', status: 'ACTIVE' },
+    create: { id: randomUUID(), email: ownerEmail, username: 'ragheed', name: 'ragheed', displayUsername: 'ragheed', role: 'ADMIN' },
+  });
+  await prisma.account.upsert({
+    where: { providerId_accountId: { providerId: 'credential', accountId: owner.id } },
+    update: { password: await bcrypt.hash(seedPassword, 12) },
+    create: { providerId: 'credential', accountId: owner.id, userId: owner.id, password: await bcrypt.hash(seedPassword, 12) },
+  });
   await prisma.appSettings.upsert({
-    where: { id: 'settings' },
+    where: { userId: owner.id },
     update: {},
-    create: { id: 'settings', priorityWeights, language: 'ar', defaultTarget: 'B+' },
+    create: { userId: owner.id, priorityWeights, language: 'ar', defaultTarget: 'B+' },
   });
 
   const semester = await prisma.semester.upsert({
     where: { id: 'current-semester' },
-    update: { isCurrent: true },
+    update: { isCurrent: true, userId: owner.id },
     create: {
       id: 'current-semester',
+      userId: owner.id,
       name: 'Current Semester',
+      academicYear: '2026/2027',
+      term: 'FALL',
       startsAt: new Date('2026-09-01T00:00:00.000Z'),
       endsAt: new Date('2027-01-31T00:00:00.000Z'),
-      creditHours: 18,
-      targetGrade: 'B+',
       isCurrent: true,
     },
   });
 
-  for (const entry of courses) {
-    await prisma.course.upsert({
-      where: { semesterId_code: { semesterId: semester.id, code: entry.code } },
-      update: entry,
-      create: { ...entry, semesterId: semester.id },
+  for (const entry of currentSemesterCourses) {
+    const existingCatalog = await prisma.course.findFirst({ where: { ownerId: null, courseCode: entry.code } });
+    const catalog = existingCatalog
+      ? await prisma.course.update({ where: { id: existingCatalog.id }, data: { nameEn: entry.nameEn, nameAr: entry.nameAr, defaultCredits: entry.credits, archived: false } })
+      : await prisma.course.create({ data: { courseCode: entry.code, nameEn: entry.nameEn, nameAr: entry.nameAr, defaultCredits: entry.credits } });
+    const enrollment = await prisma.semesterCourse.upsert({
+      where: { semesterId_courseId: { semesterId: semester.id, courseId: catalog.id } },
+      update: {
+        credits: entry.credits,
+        difficulty: entry.difficulty,
+        retake: entry.retake,
+        previousGrade: entry.previousGrade,
+        replacementEffect: entry.replacementEffect,
+        notes: 'specialNote' in entry ? entry.specialNote : null,
+        enrollmentStatus: 'ACTIVE',
+      },
+      create: {
+        semesterId: semester.id,
+        courseId: catalog.id,
+        credits: entry.credits,
+        difficulty: entry.difficulty,
+        retake: entry.retake,
+        previousGrade: entry.previousGrade,
+        replacementEffect: entry.replacementEffect,
+        notes: 'specialNote' in entry ? entry.specialNote : null,
+      },
     });
+    await prisma.assessmentComponent.deleteMany({ where: { semesterCourseId: enrollment.id } });
+    if (entry.assessmentTypes.length) {
+      await prisma.assessmentComponent.createMany({
+        data: entry.assessmentTypes.map((type, order) => ({ semesterCourseId: enrollment.id, type, name: type, order })),
+      });
+    }
   }
 
-  const savedCourses = await prisma.course.findMany({ where: { semesterId: semester.id } });
-  const byCode = new Map(savedCourses.map((course) => [course.code, course.id]));
-  await prisma.universitySchedule.deleteMany({ where: { course: { semesterId: semester.id } } });
-  await prisma.universitySchedule.createMany({
-    data: schedule.map(([code, dayOfWeek, startsAt, endsAt, isOnline]) => ({
-      courseId: byCode.get(code)!,
+  const savedCourses = await prisma.semesterCourse.findMany({ where: { semesterId: semester.id }, include: { catalog: true } });
+  const byCode = new Map(savedCourses.map((course) => [course.catalog.courseCode, course.id]));
+  await prisma.scheduleSlot.deleteMany({ where: { course: { semesterId: semester.id } } });
+  await prisma.scheduleSlot.createMany({
+    data: currentSemesterSchedule.map(([code, dayOfWeek, startsAt, endsAt, isOnline]) => ({
+      semesterCourseId: byCode.get(code)!,
       dayOfWeek,
       startsAt,
       endsAt,

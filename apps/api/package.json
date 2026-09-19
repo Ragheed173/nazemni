@@ -10,15 +10,20 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src",
     "db:generate": "prisma generate",
+    "db:deploy": "prisma migrate deploy",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:migrate-owner": "tsx scripts/migrate-owner.ts"
   },
   "dependencies": {
     "@nazemni/shared": "1.0.0",
     "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "better-auth": "^1.7.5",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.0",
     "helmet": "^8.1.0",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",

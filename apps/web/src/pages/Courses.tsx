@@ -14,7 +14,7 @@ export function CoursesPage() {
   if (query.isError || !query.data) return <ErrorState retry={() => void query.refetch()} />;
   return (
     <div className="page">
-      <div className="page-header"><div><h1>{t('courses.title')}</h1><p>{t('courses.subtitle')}</p></div></div>
+      <div className="page-header"><div><h1>{t('courses.title')}</h1><p>{t('courses.subtitle', { count: query.data.length, credits: query.data.reduce((sum, course) => sum + course.credits, 0) })}</p></div></div>
       <div className="course-list">
         {query.data.map((course) => (
           <Link className="course-row" to={'/courses/' + course.id} key={course.id}>
@@ -71,9 +71,17 @@ export function CourseDetailsPage() {
         <div><span>{t('courses.lastStudy')}</span><strong>{course.lastStudyAt ? formatDate(course.lastStudyAt, i18n.language) : '—'}</strong></div>
       </div>
       {!course.gradeStanding?.complete && <p className="notice">{t('courses.weightsIncomplete')}</p>}
+      {course.assessmentComponents.length > 0 && (
+        <section className="section assessment-structure">
+          <div className="section-heading"><h2>{t('courses.assessmentStructure')}</h2></div>
+          <div className="assessment-list">
+            {course.assessmentComponents.map((component) => <span key={component.id}>{component.name || t('states.' + component.type, { defaultValue: component.type })}{component.weight != null ? ` · ${component.weight}%` : ''}</span>)}
+          </div>
+        </section>
+      )}
       <section className="section">
         <div className="section-heading"><h2>{t('courses.schedule')}</h2></div>
-        <div className="schedule-list">{course.schedule.map((slot) => <div key={slot.id}><time dir="ltr">{slot.startsAt}–{slot.endsAt}</time><span>{dayName(slot.dayOfWeek, i18n.language)}</span><small>{t(slot.isOnline ? 'common.online' : 'common.onCampus')}</small></div>)}</div>
+        <div className="schedule-list">{course.schedule.map((slot) => <div key={slot.id}><time dir="ltr">{String(slot.startsAt)}–{String(slot.endsAt)}</time><span>{dayName(Number(slot.dayOfWeek), i18n.language)}</span><small>{t(slot.isOnline ? 'common.online' : 'common.onCampus')}</small></div>)}</div>
       </section>
       <div className="detail-sections">
         {tabs.map(([key, count]) => (
@@ -84,7 +92,7 @@ export function CourseDetailsPage() {
       </div>
       <section className="section">
         <div className="section-heading"><h2>{t('courses.history')}</h2></div>
-        {course.tasks.length ? <div className="compact-list">{course.tasks.slice(0, 8).map((task) => <div className="list-row" key={task.id}><strong>{task.title}</strong><StatusBadge value={task.status} /></div>)}</div> : <p className="muted">{t('common.noData')}</p>}
+        {course.tasks.length ? <div className="compact-list">{course.tasks.slice(0, 8).map((task) => <div className="list-row" key={task.id}><strong>{String(task.title)}</strong><StatusBadge value={String(task.status)} /></div>)}</div> : <p className="muted">{t('common.noData')}</p>}
       </section>
     </div>
   );

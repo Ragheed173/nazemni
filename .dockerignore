@@ -1,0 +1,11 @@
+.git
+.openai
+.sites-runtime
+.pgdata
+node_modules
+dist
+coverage
+.env
+.env.*
+*.tsbuildinfo
+npm-debug.log*

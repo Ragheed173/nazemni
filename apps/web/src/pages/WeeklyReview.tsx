@@ -48,11 +48,11 @@ export function WeeklyReviewPage() {
         </section>
         <section className="section">
           <div className="section-heading"><h2>{t('weekly.keyRisks')}</h2></div>
-          {data.backlog.length ? <ol className="risk-list">{data.backlog.slice(0, 5).map((item) => <li key={item.id}><strong>{item.title}</strong><span>{item.reasons?.[0]}</span></li>)}</ol> : <EmptyState message={t('backlog.safe')} />}
+          {data.backlog.length ? <ol className="risk-list">{data.backlog.slice(0, 5).map((item) => <li key={item.id}><strong>{String(item.title)}</strong><span>{Array.isArray(item.reasons) ? String(item.reasons[0] ?? '') : ''}</span></li>)}</ol> : <EmptyState message={t('backlog.safe')} />}
         </section>
         <section className="section span-2">
           <div className="section-heading"><h2>{t('dashboard.upcoming')}</h2></div>
-          {data.exams.length ? <div className="compact-list">{data.exams.map((exam) => <div className="list-row" key={exam.id}><div><strong>{exam.title}</strong>{exam.course && <span>{courseName(exam.course, i18n.language)}</span>}</div><time>{formatDate(exam.date, i18n.language)}</time></div>)}</div> : <EmptyState />}
+          {data.exams.length ? <div className="compact-list">{data.exams.map((exam) => <div className="list-row" key={exam.id}><div><strong>{String(exam.title)}</strong>{exam.course && <span>{courseName(exam.course, i18n.language)}</span>}</div><time>{formatDate(String(exam.date), i18n.language)}</time></div>)}</div> : <EmptyState />}
         </section>
       </div>
     </div>

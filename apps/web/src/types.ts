@@ -9,7 +9,11 @@ export interface Course {
   previousGrade?: number | null;
   replacementEffect: boolean;
   targetGrade: string;
-  specialNote?: string | null;
+  notes?: string | null;
+  enrollmentStatus: 'ACTIVE' | 'DROPPED' | 'WITHDRAWN' | 'COMPLETED';
+  instructor?: string | null;
+  section?: string | null;
+  assessmentComponents: Array<{ id: string; type: string; name: string; weight?: number | null; enabled: boolean; order: number }>;
   status: 'ON_TRACK' | 'NEEDS_ATTENTION' | 'AT_RISK';
   lastStudyAt?: string | null;
   lectureProgress?: number;
@@ -42,4 +46,4 @@ export interface DailyPlan {
   groups: { CRITICAL: PlanItem[]; IMPORTANT: PlanItem[]; OPTIONAL: PlanItem[] };
 }
 
-export type EntityRecord = Record<string, any> & { id: string; course?: Course };
+export type EntityRecord = Record<string, unknown> & { id: string; course?: Course };

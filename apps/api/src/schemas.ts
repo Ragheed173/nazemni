@@ -104,6 +104,9 @@ export const checkOutInput = z.object({
 
 export const settingsInput = z.object({
   language: z.enum(['ar', 'en']).optional(),
+  timezone: z.string().trim().min(1).max(100).refine((value) => {
+    try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; }
+  }, 'Invalid timezone').optional(),
   weeklyReviewDay: z.coerce.number().int().min(0).max(6).optional(),
   defaultTarget: z.string().min(1).max(10).optional(),
   retakeBonus: z.coerce.number().int().min(0).max(30).optional(),
@@ -111,3 +114,75 @@ export const settingsInput = z.object({
   focusModeManual: z.boolean().optional().nullable(),
   focusModeReason: z.string().max(240).optional().nullable(),
 });
+
+export const semesterInput = z.object({
+  name: z.string().min(2).max(120),
+  academicYear: z.string().min(4).max(20),
+  term: z.string().min(2).max(40),
+  startsAt: z.coerce.date(),
+  endsAt: z.coerce.date(),
+  isCurrent: z.boolean().optional(),
+}).refine((value) => value.endsAt > value.startsAt, {
+  message: 'Semester end date must be after its start date',
+  path: ['endsAt'],
+});
+
+export const semesterUpdateInput = z.object({
+  name: z.string().min(2).max(120).optional(),
+  academicYear: z.string().min(4).max(20).optional(),
+  term: z.string().min(2).max(40).optional(),
+  startsAt: z.coerce.date().optional(),
+  endsAt: z.coerce.date().optional(),
+  isCurrent: z.boolean().optional(),
+});
+
+export const catalogCourseInput = z.object({
+  courseCode: z.string().trim().min(1).max(40),
+  nameAr: z.string().trim().min(2).max(180),
+  nameEn: z.string().trim().min(2).max(180),
+  defaultCredits: z.coerce.number().int().min(1).max(30),
+  archived: z.boolean().optional().default(false),
+});
+
+export const scheduleSlotInput = z.object({
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  isOnline: z.boolean().default(false),
+  location: z.string().trim().max(160).optional().nullable(),
+}).refine((value) => value.endsAt > value.startsAt, {
+  message: 'End time must be after start time',
+  path: ['endsAt'],
+});
+
+export const assessmentComponentInput = z.object({
+  type: z.enum(['QUIZ', 'ASSIGNMENT', 'PROJECT', 'MIDTERM', 'FINAL', 'PARTICIPATION', 'OTHER']),
+  name: z.string().trim().min(1).max(120),
+  weight: z.coerce.number().min(0).max(100).optional().nullable(),
+  enabled: z.boolean().default(true),
+  order: z.coerce.number().int().min(0),
+});
+
+const enrollmentFields = z.object({
+  credits: z.coerce.number().int().min(1).max(30),
+  difficulty: z.coerce.number().int().min(1).max(10),
+  targetGrade: z.string().trim().min(1).max(10).default('B'),
+  retake: z.boolean().default(false),
+  previousGrade: z.coerce.number().min(0).max(4).optional().nullable(),
+  replacementEffect: z.boolean().default(false),
+  instructor: z.string().trim().max(160).optional().nullable(),
+  section: z.string().trim().max(80).optional().nullable(),
+  notes: z.string().max(4000).optional().nullable(),
+  schedule: z.array(scheduleSlotInput).max(21).default([]),
+  assessmentComponents: z.array(assessmentComponentInput).max(30).default([]),
+});
+
+export const semesterCourseCreateInput = enrollmentFields.extend({
+  courseId: z.string().min(1).optional(),
+  newCourse: catalogCourseInput.optional(),
+}).refine((value) => Boolean(value.courseId) !== Boolean(value.newCourse), {
+  message: 'Choose an existing course or create a new one',
+  path: ['courseId'],
+});
+
+export const semesterCourseUpdateInput = enrollmentFields.partial();

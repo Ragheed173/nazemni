@@ -51,6 +51,7 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: 'description', label: 'entities.tasks.description', type: 'textarea' },
       { key: 'type', label: 'common.type', type: 'select', options: ['LECTURE', 'REVIEW', 'ASSIGNMENT', 'PROJECT', 'EXAM_PREP', 'PRACTICE', 'OTHER'], defaultValue: 'OTHER' },
       { key: 'priority', label: 'entities.tasks.priority', type: 'select', options: ['CRITICAL', 'IMPORTANT', 'OPTIONAL'], defaultValue: 'IMPORTANT' },
+      { key: 'status', label: 'common.status', type: 'select', options: ['TODO', 'IN_PROGRESS', 'COMPLETED', 'DEFERRED'], defaultValue: 'TODO' },
       { key: 'dueAt', label: 'entities.tasks.dueAt', type: 'date' },
       { key: 'estimatedEffort', label: 'entities.tasks.effort', type: 'number' },
       { key: 'notes', label: 'common.notes', type: 'textarea' },
@@ -65,6 +66,7 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: 'officialDeadline', label: 'entities.assignments.officialDeadline', type: 'date', required: true },
       { key: 'internalDeadline', label: 'entities.assignments.internalDeadline', type: 'date' },
       { key: 'weight', label: 'entities.assignments.weight', type: 'number' },
+      { key: 'status', label: 'common.status', type: 'select', options: ['NOT_STARTED', 'IN_PROGRESS', 'READY_TO_SUBMIT', 'SUBMITTED', 'GRADED'], defaultValue: 'NOT_STARTED' },
       { key: 'progress', label: 'entities.assignments.progress', type: 'number', defaultValue: 0 },
       { key: 'notes', label: 'common.notes', type: 'textarea' },
     ],
@@ -79,6 +81,8 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: 'officialDeadline', label: 'entities.projects.officialDeadline', type: 'date', required: true },
       { key: 'internalDeadline', label: 'entities.projects.internalDeadline', type: 'date' },
       { key: 'weight', label: 'entities.projects.weight', type: 'number' },
+      { key: 'status', label: 'common.status', type: 'select', options: ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'SUBMITTED'], defaultValue: 'NOT_STARTED' },
+      { key: 'progress', label: 'common.progress', type: 'number', defaultValue: 0 },
       { key: 'notes', label: 'common.notes', type: 'textarea' },
       { key: 'addDefaultMilestones', label: 'entities.projects.milestones', type: 'checkbox', defaultValue: true },
     ],
@@ -91,6 +95,7 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: 'type', label: 'common.type', type: 'select', options: ['QUIZ', 'MIDTERM', 'FINAL'], defaultValue: 'MIDTERM' },
       { key: 'date', label: 'entities.exams.examDate', type: 'date', required: true },
       { key: 'weight', label: 'entities.exams.weight', type: 'number' },
+      { key: 'preparationStatus', label: 'entities.exams.preparation', type: 'select', options: ['NOT_STARTED', 'IN_PROGRESS', 'READY', 'COMPLETED'], defaultValue: 'NOT_STARTED' },
       { key: 'confidenceLevel', label: 'entities.exams.confidence', type: 'number' },
       { key: 'notes', label: 'common.notes', type: 'textarea' },
     ],
@@ -125,6 +130,7 @@ export function EntityPage({ config }: { config: EntityConfig }) {
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
   const [addOpen, setAddOpen] = useState(search.get('add') === '1');
+  const [editRecord, setEditRecord] = useState<EntityRecord | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const courseId = search.get('courseId');
   const query = useQuery({
@@ -137,6 +143,11 @@ export function EntityPage({ config }: { config: EntityConfig }) {
   const remove = useMutation({
     mutationFn: (id: string) => mutations.remove(config.resource, id),
     onSuccess: () => { toast.success(t('common.deleted')); void client.invalidateQueries(); setDeleteId(null); },
+  });
+  const updateMilestone = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => mutations.update('/milestones', id, { status }),
+    onSuccess: () => { toast.success(t('common.success')); void client.invalidateQueries(); },
+    onError: (error) => toast.error(error.message),
   });
   const title = t('entities.' + config.translationKey + '.title');
   useEffect(() => {
@@ -163,13 +174,26 @@ export function EntityPage({ config }: { config: EntityConfig }) {
           </div>
           {query.data.map((item) => (
             <div className="table-row" key={item.id}>
-              <div><strong>{String(item[config.titleKey ?? 'title'])}</strong>{config.progressKey && <small>{t('common.progress')}: {item[config.progressKey]}%</small>}{config.translationKey === 'grades' && <small>{item.score}/{item.maximumScore} · {Math.round(item.score / item.maximumScore * 100)}%</small>}</div>
+              <div>
+                <strong>{String(item[config.titleKey ?? 'title'])}</strong>
+                {config.progressKey && <small>{t('common.progress')}: {Number(item[config.progressKey])}%</small>}
+                {config.translationKey === 'grades' && <small>{Number(item.score)}/{Number(item.maximumScore)} · {Math.round(Number(item.score) / Number(item.maximumScore) * 100)}%</small>}
+                {config.translationKey === 'projects' && Array.isArray(item.milestones) && item.milestones.length > 0 && (
+                  <div className="milestone-list">
+                    {item.milestones.map((milestone) => {
+                      const row = milestone as { id: string; title: string; status: string };
+                      return <button type="button" key={row.id} className={row.status === 'COMPLETED' ? 'complete' : ''} onClick={() => updateMilestone.mutate({ id: row.id, status: row.status === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED' })}>{row.title}</button>;
+                    })}
+                  </div>
+                )}
+              </div>
               <span className="course-cell">{item.course ? courseName(item.course, i18n.language) : '—'}</span>
               <StatusBadge value={String(item[config.statusKey ?? 'status'] ?? '')} />
-              <time>{config.dateKey && item[config.dateKey] ? formatDate(item[config.dateKey], i18n.language) : '—'}</time>
+              <time>{config.dateKey && item[config.dateKey] ? formatDate(String(item[config.dateKey]), i18n.language) : '—'}</time>
               <div className="row-actions">
                 {config.translationKey === 'tasks' && item.status !== 'COMPLETED' && <button onClick={() => void mutations.update('/tasks', item.id, { status: 'COMPLETED' }).then(() => client.invalidateQueries())}>{t('plan.markComplete')}</button>}
                 {config.translationKey === 'weakTopics' && !item.resolved && <button onClick={() => void mutations.update('/weak-topics', item.id, { resolved: true }).then(() => client.invalidateQueries())}>{t('entities.weakTopics.resolve')}</button>}
+                <button onClick={() => setEditRecord(item)}>{t('common.edit')}</button>
                 <button className="danger-text" onClick={() => setDeleteId(item.id)}>{t('common.delete')}</button>
               </div>
             </div>
@@ -177,30 +201,36 @@ export function EntityPage({ config }: { config: EntityConfig }) {
         </div> : <EmptyState />}
       </section>
       <EntityForm open={addOpen} onClose={() => setAddOpen(false)} config={config} initialCourseId={courseId} />
+      <EntityForm open={Boolean(editRecord)} onClose={() => setEditRecord(null)} config={config} initialCourseId={courseId} record={editRecord} />
       <ConfirmDialog open={Boolean(deleteId)} onClose={() => setDeleteId(null)} onConfirm={() => deleteId && remove.mutate(deleteId)} />
     </div>
   );
 }
 
-function EntityForm({ open, onClose, config, initialCourseId }: { open: boolean; onClose: () => void; config: EntityConfig; initialCourseId: string | null }) {
+function EntityForm({ open, onClose, config, initialCourseId, record = null }: { open: boolean; onClose: () => void; config: EntityConfig; initialCourseId: string | null; record?: EntityRecord | null }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
-  const defaults = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, field.key === 'courseId' && initialCourseId ? initialCourseId : field.defaultValue ?? (field.type === 'checkbox' ? false : '')])), [config, initialCourseId]);
+  const defaults = useMemo(() => Object.fromEntries(config.fields.map((field) => {
+    const recordValue = record?.[field.key];
+    const value = recordValue ?? (field.key === 'courseId' && initialCourseId ? initialCourseId : field.defaultValue ?? (field.type === 'checkbox' ? false : ''));
+    return [field.key, field.type === 'date' && value ? String(value).slice(0, 10) : value];
+  })), [config, initialCourseId, record]);
   const [form, setForm] = useState<Record<string, unknown>>(defaults);
+  useEffect(() => setForm(defaults), [defaults, open]);
   const courses = useQuery({ queryKey: ['courses'], queryFn: () => api<Course[]>('/courses'), enabled: open });
-  const create = useMutation({
-    mutationFn: () => mutations.create(config.resource, clean(form)),
+  const save = useMutation({
+    mutationFn: () => record ? mutations.update(config.resource, record.id, clean(form)) : mutations.create(config.resource, clean(form)),
     onSuccess: () => { toast.success(t('common.success')); void client.invalidateQueries(); setForm(defaults); onClose(); },
     onError: (error) => toast.error(error.message),
   });
   if (!open) return null;
-  const submit = (event: FormEvent) => { event.preventDefault(); create.mutate(); };
+  const submit = (event: FormEvent) => { event.preventDefault(); save.mutate(); };
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onMouseDown={(e) => e.stopPropagation()}>
-        <h2 id="entity-form-title">{t('entities.' + config.translationKey + '.add')}</h2>
+        <h2 id="entity-form-title">{record ? t('common.edit') : t('entities.' + config.translationKey + '.add')}</h2>
         <form onSubmit={submit} className="entity-form">
-          {config.fields.map((field) => (
+          {config.fields.filter((field) => !record || field.key !== 'addDefaultMilestones').map((field) => (
             <label className={'field ' + (field.type === 'textarea' ? 'full-field' : '')} key={field.key}>
               <span>{t(field.label)}{!field.required && field.type !== 'checkbox' && <small> ({t('common.optional')})</small>}</span>
               {field.key === 'courseId' ? (
@@ -220,7 +250,7 @@ function EntityForm({ open, onClose, config, initialCourseId }: { open: boolean;
               )}
             </label>
           ))}
-          <div className="dialog-actions full-field"><button type="button" className="button secondary" onClick={onClose}>{t('common.cancel')}</button><button className="button primary" disabled={create.isPending}>{t('common.save')}</button></div>
+          <div className="dialog-actions full-field"><button type="button" className="button secondary" onClick={onClose}>{t('common.cancel')}</button><button className="button primary" disabled={save.isPending}>{t('common.save')}</button></div>
         </form>
       </section>
     </div>

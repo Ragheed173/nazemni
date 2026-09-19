@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/PageState';
 import { StatusBadge } from '../components/StatusBadge';
 
 interface DashboardData {
+  hasCurrentSemester: boolean;
   plan: DailyPlan;
   upcoming: Array<{ kind: string; title: string; date: string; course: Course }>;
   attention: Course[];
@@ -21,6 +22,7 @@ export function Dashboard() {
   const query = useQuery({ queryKey: ['dashboard'], queryFn: () => api<DashboardData>('/dashboard') });
   if (query.isLoading) return <LoadingState />;
   if (query.isError || !query.data) return <ErrorState retry={() => void query.refetch()} />;
+  if (!query.data.hasCurrentSemester) return <div className="page"><div className="page-header"><div><h1>{t('dashboard.title')}</h1></div></div><section className="section empty-workspace"><h2>{t('dashboard.noSemester')}</h2><p>{t('dashboard.noSemesterHint')}</p><Link className="button primary" to="/onboarding">{t('dashboard.createSemester')}</Link></section></div>;
   const tasks = [...query.data.plan.groups.CRITICAL, ...query.data.plan.groups.IMPORTANT].slice(0, 4);
   return (
     <div className="page">

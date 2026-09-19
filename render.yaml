@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: nazemni-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nazemni-postgres
+          property: connectionString
+      - key: WEB_ORIGIN
+        value: https://nazemni.online
+      - key: AUTH_SESSION_SECRET
+        sync: false
+      - key: AUTH_SESSION_TTL_DAYS
+        value: 30
+      - key: REGISTRATION_MODE
+        value: INVITE_ONLY
+      - key: AI_ENABLED
+        value: true
+      - key: AI_PROVIDER
+        value: openai-compatible
+      - key: AI_MODEL
+        value: openai/gpt-oss-20b
+      - key: AI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MAX_OUTPUT_TOKENS
+        value: 1200
+      - key: AI_REQUESTS_PER_MINUTE
+        value: 5
+      - key: AI_REQUESTS_PER_DAY
+        value: 20
+      - key: AI_MAX_MESSAGE_LENGTH
+        value: 4000
+      - key: AI_MAX_TOOL_ITERATIONS
+        value: 4
+      - key: AI_TIMEOUT_MS
+        value: 30000
+      - key: AI_HISTORY_MAX_MESSAGES
+        value: 8
+      - key: AI_HISTORY_MAX_TOKENS
+        value: 1200
+      - key: AI_INPUT_TOKEN_BUDGET_PER_MINUTE
+        value: 7000
+      - key: AI_MAX_CONCURRENT_PER_USER
+        value: 1
+
+databases:
+  - name: nazemni-postgres
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "17"
+    databaseName: nazemni
+    user: nazemni

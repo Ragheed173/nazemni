@@ -22,6 +22,15 @@ describe('priority engine', () => {
     const deferred = calculatePriority({ id: '1', title: 'Lecture', difficulty: 6, deferredCount: 4 }, now);
     expect(deferred.score).toBeGreaterThan(base.score);
   });
+
+  it('applies the retake bonus from enrollment data and removes it when the flag is cleared', () => {
+    const base = { id: 'same-course', title: 'Study', difficulty: 7, previousGrade: 1.5 };
+    const regular = calculatePriority({ ...base, retake: false }, now);
+    const retake = calculatePriority({ ...base, retake: true }, now);
+    expect(retake.score).toBeGreaterThan(regular.score);
+    expect(retake.reasons).toContain('Retake with GPA replacement effect');
+    expect(regular.reasons).not.toContain('Retake with GPA replacement effect');
+  });
 });
 
 describe('study metrics', () => {

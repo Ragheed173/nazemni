@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from '../components/PageState';
 
 interface Settings {
   language: 'ar' | 'en';
+  timezone: string;
   weeklyReviewDay: number;
   defaultTarget: string;
   retakeBonus: number;
@@ -34,6 +35,7 @@ export function SettingsPage() {
       <form className="section settings-form" onSubmit={submit}>
         <h2>{t('settings.planning')}</h2>
         <label className="field"><span>{t('common.language')}</span><select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value as 'ar' | 'en' })}><option value="ar">العربية</option><option value="en">English</option></select></label>
+        <label className="field"><span>{t('settings.timezone')}</span><select value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })}><option value="Asia/Hebron">Asia/Hebron</option><option value="Asia/Amman">Asia/Amman</option><option value="Asia/Riyadh">Asia/Riyadh</option><option value="UTC">UTC</option></select></label>
         <label className="field"><span>{t('settings.weeklyDay')}</span><select value={form.weeklyReviewDay} onChange={(e) => setForm({ ...form, weeklyReviewDay: Number(e.target.value) })}><option value="6">{t('settings.saturday')}</option></select></label>
         <label className="field"><span>{t('settings.target')}</span><select value={form.defaultTarget} onChange={(e) => setForm({ ...form, defaultTarget: e.target.value })}><option>B</option><option>B+</option><option>A-</option><option>A</option></select></label>
         <label className="field"><span>{t('settings.retakeBonus')}</span><input type="number" min="0" max="30" value={form.retakeBonus} onChange={(e) => setForm({ ...form, retakeBonus: Number(e.target.value) })} /></label>

@@ -4,6 +4,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
@@ -12,12 +13,14 @@ export class ApiError extends Error {
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(API_URL + path, {
     ...options,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
   if (response.status === 204) return undefined as T;
   const payload = await response.json();
   if (!response.ok || !payload.ok) {
-    throw new ApiError(payload.error?.message ?? 'Request failed', response.status);
+    if (response.status === 401) window.dispatchEvent(new Event('nazemni:unauthorized'));
+    throw new ApiError(payload.error?.message ?? 'Request failed', response.status, payload.error?.code);
   }
   return payload.data as T;
 }

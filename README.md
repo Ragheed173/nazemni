@@ -1,6 +1,6 @@
 # نظمني (Nazemni)
 
-نظمني is a bilingual personal academic operating system for one university student. It manages courses, lectures, study tasks, assessments, grades, weak topics, backlog, deterministic daily planning, daily check-out, and weekly review. V1 has no AI dependency.
+نظمني is a bilingual, invite-only academic management application. Each account has an isolated study workspace for courses, lectures, tasks, assessments, grades, weak topics, backlog, deterministic daily planning, daily check-out, and weekly review. The optional AI Assistant uses protected backend tools; PostgreSQL and the deterministic planning engine remain the source of truth. There is no payment system.
 
 ## Stack
 
@@ -20,7 +20,7 @@
 2. Start PostgreSQL with docker compose up -d postgres, or set DATABASE_URL to an existing database.
 3. Install packages with npm install.
 4. Generate the client and apply migrations with npm run db:generate and npm run db:migrate.
-5. Seed the semester, six courses, and weekly university schedule with npm run db:seed.
+5. For a disposable local database only, set `SEED_OWNER_PASSWORD` and run `npm run db:seed`. Never seed production.
 6. Start both applications with npm run dev.
 
 The web app runs at http://localhost:5173; the API runs at http://localhost:4000.
@@ -33,6 +33,23 @@ The web app runs at http://localhost:5173; the API runs at http://localhost:4000
 | API_PORT | Express port (default 4000) |
 | WEB_ORIGIN | Allowed browser origin |
 | VITE_API_URL | API URL used by the web application |
+| AUTH_PASSWORD_HASH | Existing owner's bcrypt hash, required only for the first owner migration |
+| AUTH_SESSION_SECRET | Random secret of at least 32 characters used to protect sessions |
+| AUTH_SESSION_TTL_DAYS | Session lifetime in days (default 30) |
+| REGISTRATION_MODE | `INVITE_ONLY`, `OPEN`, or `CLOSED` |
+| OWNER_USERNAME | Username assigned by the one-time owner migration |
+| OWNER_EMAIL | Email assigned by the one-time owner migration |
+| AI_ENABLED | Emergency feature flag; keep `false` until a provider key is configured |
+| AI_PROVIDER | Provider adapter name (`openai-compatible`) |
+| AI_MODEL | Provider model name |
+| AI_API_KEY | Backend-only provider key; never expose it to Vite or commit it |
+| AI_BASE_URL | Optional OpenAI-compatible API base URL |
+| AI_MAX_OUTPUT_TOKENS | Maximum output tokens per provider response |
+| AI_REQUESTS_PER_MINUTE | Per-user AI request limit per minute |
+| AI_REQUESTS_PER_DAY | Per-user AI request limit per UTC day |
+| AI_MAX_MESSAGE_LENGTH | Maximum user message length |
+| AI_MAX_TOOL_ITERATIONS | Maximum tool loop iterations per message |
+| AI_TIMEOUT_MS | Provider request timeout |
 
 ## Commands
 
@@ -41,7 +58,16 @@ The web app runs at http://localhost:5173; the API runs at http://localhost:4000
 - npm test — business-logic and API foundation tests
 - npm run build — production builds for all workspaces
 - npm run db:migrate — apply/create Prisma migrations
+- npm run db:deploy — apply committed migrations in production
 - npm run db:seed — seed the real semester configuration
+
+## Deployment
+
+The production deployment uses `compose.server.yml`: PostgreSQL and the Express/React application stay in Docker, port 8380 is bound to localhost only, and Cloudflare Tunnel provides HTTPS ingress. The container applies committed migrations and runs the idempotent owner migration before starting Express. It never runs the seed.
+
+Set the variables from `.env.example` in a server-only environment file, then run `docker compose --env-file .env.server -f compose.server.yml up -d --build`. Keep `.env.server`, the Better Auth secret, the database password, and the owner password hash out of Git.
+
+`render.yaml` remains an optional full-stack deployment template. It applies migrations and the owner migration, but does not seed production.
 
 ## Structure
 
