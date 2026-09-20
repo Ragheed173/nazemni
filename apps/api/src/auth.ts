@@ -103,7 +103,11 @@ export function createNazemniAuth(options: AuthOptions) {
         }
       }),
     },
-    plugins: [username({ minUsernameLength: 3, maxUsernameLength: 64 })],
+    plugins: [username({
+      minUsernameLength: 3,
+      maxUsernameLength: 64,
+      usernameValidator: (value) => /^[a-zA-Z0-9_.-]+$/.test(value),
+    })],
   });
 }
 
