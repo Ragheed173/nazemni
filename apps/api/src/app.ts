@@ -41,7 +41,14 @@ export function createApp({
   app.use(helmet({ contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } } }));
   app.use(cors({ origin: [webOrigin, ...trustedOrigins], credentials: true }));
   app.use(pinoHttp({
-    redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body.password', 'req.body.currentPassword', 'req.body.newPassword'],
+    redact: [
+      'req.headers.cookie',
+      'req.headers.authorization',
+      'req.headers.x-vercel-proxy-signature',
+      'req.body.password',
+      'req.body.currentPassword',
+      'req.body.newPassword',
+    ],
   }));
   app.get('/health', (_request, response) => response.json({ ok: true, data: { status: 'healthy' } }));
   app.use('/api', (_request, response, next) => {
