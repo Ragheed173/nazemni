@@ -61,7 +61,7 @@ const ar = {
       status: { ON_TRACK: 'على المسار', NEEDS_ATTENTION: 'تحتاج انتباه', AT_RISK: 'معرّضة للخطر' },
     },
     entities: {
-      lectures: { title: 'المحاضرات', add: 'إضافة محاضرة', backloggedAdd: 'إضافة محاضرة متراكمة', number: 'رقم المحاضرة', lectureDate: 'تاريخ المحاضرة', duration: 'مدة المحاضرة', durationPlaceholder: 'مثال: 60 دقيقة', deliveryMode: 'نوع المحاضرة', deliveryModes: { IN_PERSON: 'وجاهية', ONLINE: 'إلكترونية' }, attended: 'هل حضرت المحاضرة؟', attendance: { true: 'حضرتها', false: 'ما حضرتها' }, reviewToggle: 'نعم، أحتاج مراجعة', understanding: 'الفهم من 10', needsReview: 'تحتاج مراجعة', state: 'الحالة' },
+      lectures: { title: 'المحاضرات', add: 'إضافة محاضرة', backloggedAdd: 'إضافة محاضرة متراكمة', backloggedLabel: 'محاضرة', number: 'رقم المحاضرة', lectureDate: 'تاريخ المحاضرة', duration: 'مدة المحاضرة', durationPlaceholder: 'مثال: 60 دقيقة', deliveryMode: 'نوع المحاضرة', deliveryModes: { IN_PERSON: 'وجاهية', ONLINE: 'إلكترونية' }, attended: 'هل حضرت المحاضرة؟', attendance: { true: 'حضرتها', false: 'ما حضرتها' }, reviewToggle: 'نعم، أحتاج مراجعة', understanding: 'الفهم من 10', needsReview: 'تحتاج مراجعة', state: 'الحالة' },
       tasks: { title: 'المهام', add: 'إضافة مهمة', description: 'الوصف', dueAt: 'تاريخ الاستحقاق', effort: 'الجهد المتوقع', priority: 'الأولوية' },
       assignments: { title: 'الواجبات', add: 'إضافة واجب', officialDeadline: 'الموعد الرسمي', internalDeadline: 'الموعد الداخلي', weight: 'الوزن', progress: 'التقدم' },
       projects: { title: 'المشاريع', add: 'إضافة مشروع', officialDeadline: 'الموعد الرسمي', internalDeadline: 'الموعد الداخلي', weight: 'الوزن', milestones: 'المراحل' },
@@ -174,7 +174,7 @@ const en = {
       status: { ON_TRACK: 'On track', NEEDS_ATTENTION: 'Needs attention', AT_RISK: 'At risk' },
     },
     entities: {
-      lectures: { title: 'Lectures', add: 'Add lecture', backloggedAdd: 'Add Backlogged Lecture', number: 'Lecture number', lectureDate: 'Lecture Date', duration: 'Duration', durationPlaceholder: 'Example: 60 minutes', deliveryMode: 'Delivery mode', deliveryModes: { IN_PERSON: 'In-person', ONLINE: 'Online' }, attended: 'Did you attend?', attendance: { true: 'Attended', false: 'Did not attend' }, reviewToggle: 'Yes, needs review', understanding: 'Understanding / 10', needsReview: 'Needs review', state: 'State' },
+      lectures: { title: 'Lectures', add: 'Add lecture', backloggedAdd: 'Add Backlogged Lecture', backloggedLabel: 'Lecture', number: 'Lecture number', lectureDate: 'Lecture Date', duration: 'Duration', durationPlaceholder: 'Example: 60 minutes', deliveryMode: 'Delivery mode', deliveryModes: { IN_PERSON: 'In-person', ONLINE: 'Online' }, attended: 'Did you attend?', attendance: { true: 'Attended', false: 'Did not attend' }, reviewToggle: 'Yes, needs review', understanding: 'Understanding / 10', needsReview: 'Needs review', state: 'State' },
       tasks: { title: 'Tasks', add: 'Add task', description: 'Description', dueAt: 'Due date', effort: 'Estimated effort', priority: 'Priority' },
       assignments: { title: 'Assignments', add: 'Add assignment', officialDeadline: 'Official deadline', internalDeadline: 'Internal target', weight: 'Weight', progress: 'Progress' },
       projects: { title: 'Projects', add: 'Add project', officialDeadline: 'Official deadline', internalDeadline: 'Internal target', weight: 'Weight', milestones: 'Milestones' },

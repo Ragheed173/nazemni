@@ -180,7 +180,7 @@ export function EntityPage({ config }: { config: EntityConfig }) {
           {query.data.map((item) => (
             <div className="table-row" key={item.id}>
               <div>
-                <strong>{String(item[config.titleKey ?? 'title'])}</strong>
+                <strong>{config.translationKey === 'lectures' && /^Backlogged Lecture \d+$/.test(String(item.title)) ? t('entities.lectures.backloggedLabel') : String(item[config.titleKey ?? 'title'])}</strong>
                 {config.progressKey && <small>{t('common.progress')}: {Number(item[config.progressKey])}%</small>}
                 {config.translationKey === 'grades' && <small>{Number(item.score)}/{Number(item.maximumScore)} · {Math.round(Number(item.score) / Number(item.maximumScore) * 100)}%</small>}
                 {config.translationKey === 'lectures' && <small>{Number(item.durationMinutes) || 0} {t('common.minutes')} · {item.deliveryMode === 'ONLINE' ? t('common.online') : t('common.inPerson')} · {item.attended ? t('entities.lectures.attendance.true') : t('entities.lectures.attendance.false')}</small>}
