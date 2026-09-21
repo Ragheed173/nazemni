@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { displayLectureTitle } from '@nazemni/shared';
 import { api } from '../api';
 import { courseName } from '../lib';
 import type { Course } from '../types';
@@ -21,7 +22,7 @@ export function BacklogPage() {
         {query.data.length ? <div className="backlog-list">{query.data.map((item, index) => (
           <article className="backlog-row" key={item.kind + item.id}>
             <span className="rank">{index + 1}</span>
-            <div className="backlog-main"><strong>{item.title}</strong><span>{courseName(item.course, i18n.language)}</span><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>
+            <div className="backlog-main"><strong>{displayLectureTitle(item.title, t('entities.lectures.backloggedLabel'))}</strong><span>{courseName(item.course, i18n.language)}</span><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>
             <div className="risk-meter"><span>{t('backlog.risk')}</span><strong>{item.risk}/100</strong><meter min="0" max="100" value={item.risk} /></div>
           </article>
         ))}</div> : <EmptyState message={t('backlog.safe')} />}

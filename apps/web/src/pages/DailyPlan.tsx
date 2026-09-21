@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { displayLectureTitle } from '@nazemni/shared';
 import { api, mutations } from '../api';
 import { courseName } from '../lib';
 import type { Course, DailyPlan, PlanItem } from '../types';
@@ -45,7 +46,7 @@ function PlanGroup({ title, items, tone }: { title: string; items: PlanItem[]; t
         {items.map((item) => (
           <div className="table-row" key={item.id}>
             <span className="course-cell">{courseName(item.course, i18n.language)}</span>
-            <div><strong>{item.title}</strong>{item.estimatedEffort && <small>{item.estimatedEffort} {t('common.minutes')}</small>}</div>
+            <div><strong>{displayLectureTitle(item.title, t('entities.lectures.backloggedLabel'))}</strong>{item.estimatedEffort && <small>{item.estimatedEffort} {t('common.minutes')}</small>}</div>
             <span>{item.reasons.join(' · ')}</span>
             <div className="row-actions">
               {item.kind === 'task' ? <>
@@ -107,7 +108,7 @@ function CheckoutDialog({ open, onClose, items }: { open: boolean; onClose: () =
         <h2 id="checkout-title">{t('plan.checkoutTitle')}</h2>
         <div className="checkout-list">{items.filter((x) => x.kind === 'task').map((item) => (
           <div key={item.id}>
-            <span>{item.title}</span>
+            <span>{displayLectureTitle(item.title, t('entities.lectures.backloggedLabel'))}</span>
             <label><input type="checkbox" checked={completed.includes(item.entityId)} onChange={(e) => setTaskStatus(item.entityId, 'COMPLETED', e.target.checked)} />{t('plan.completed')}</label>
             <label><input type="checkbox" checked={inProgress.includes(item.entityId)} onChange={(e) => setTaskStatus(item.entityId, 'IN_PROGRESS', e.target.checked)} />{t('plan.inProgress')}</label>
             <label><input type="checkbox" checked={deferred.includes(item.entityId)} onChange={(e) => setTaskStatus(item.entityId, 'DEFERRED', e.target.checked)} />{t('plan.deferred')}</label>

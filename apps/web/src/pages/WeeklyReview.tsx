@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { displayLectureTitle } from '@nazemni/shared';
 import { api } from '../api';
 import { courseName, formatDate } from '../lib';
 import type { Course, EntityRecord } from '../types';
@@ -48,7 +49,7 @@ export function WeeklyReviewPage() {
         </section>
         <section className="section">
           <div className="section-heading"><h2>{t('weekly.keyRisks')}</h2></div>
-          {data.backlog.length ? <ol className="risk-list">{data.backlog.slice(0, 5).map((item) => <li key={item.id}><strong>{String(item.title)}</strong><span>{Array.isArray(item.reasons) ? String(item.reasons[0] ?? '') : ''}</span></li>)}</ol> : <EmptyState message={t('backlog.safe')} />}
+          {data.backlog.length ? <ol className="risk-list">{data.backlog.slice(0, 5).map((item) => <li key={item.id}><strong>{displayLectureTitle(String(item.title), t('entities.lectures.backloggedLabel'))}</strong><span>{Array.isArray(item.reasons) ? String(item.reasons[0] ?? '') : ''}</span></li>)}</ol> : <EmptyState message={t('backlog.safe')} />}
         </section>
         <section className="section span-2">
           <div className="section-heading"><h2>{t('dashboard.upcoming')}</h2></div>

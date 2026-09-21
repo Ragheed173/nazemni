@@ -6,6 +6,7 @@ import {
   calculateWeeklyScore,
   detectBacklogRisk,
   detectFocusMode,
+  displayLectureTitle,
   reviewDelayDays,
 } from './index.js';
 
@@ -30,6 +31,16 @@ describe('priority engine', () => {
     expect(retake.score).toBeGreaterThan(regular.score);
     expect(retake.reasons).toContain('Retake with GPA replacement effect');
     expect(regular.reasons).not.toContain('Retake with GPA replacement effect');
+  });
+});
+
+describe('lecture display titles', () => {
+  it('hides only generated compatibility titles', () => {
+    expect(displayLectureTitle('Backlogged Lecture 4', 'Lecture')).toBe('Lecture');
+    expect(displayLectureTitle('Lecture 4: Backlogged Lecture 4', 'محاضرة')).toBe('محاضرة');
+    expect(displayLectureTitle('Study Lecture 4: Backlogged Lecture 4', 'Lecture')).toBe('Lecture');
+    expect(displayLectureTitle('محاضرة الأحد', 'محاضرة')).toBe('محاضرة الأحد');
+    expect(displayLectureTitle('Backlogged Lecture notes', 'Lecture')).toBe('Backlogged Lecture notes');
   });
 });
 
