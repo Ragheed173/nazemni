@@ -17,7 +17,7 @@
 ## Setup
 
 1. Copy .env.example to .env.
-2. Start PostgreSQL with docker compose up -d postgres, or set DATABASE_URL to an existing database.
+2. Start PostgreSQL with docker compose up -d postgres, or set DATABASE_URL and DIRECT_URL to an existing database.
 3. Install packages with npm install.
 4. Generate the client and apply migrations with npm run db:generate and npm run db:migrate.
 5. For a disposable local database only, set `SEED_OWNER_PASSWORD` and run `npm run db:seed`. Never seed production.
@@ -30,6 +30,7 @@ The web app runs at http://localhost:5173; the API runs at http://localhost:4000
 | Variable | Purpose |
 | --- | --- |
 | DATABASE_URL | PostgreSQL connection string |
+| DIRECT_URL | Direct PostgreSQL connection used by Prisma migration/admin commands |
 | API_PORT | Express port (default 4000) |
 | WEB_ORIGIN | Allowed browser origin |
 | VITE_API_URL | API URL used by the web application |
