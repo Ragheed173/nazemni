@@ -70,6 +70,61 @@ describe('multi-tenant ownership boundaries', () => {
   });
 });
 
+describe('lecture backlog API', () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it('creates a lecture without client-supplied title or number', async () => {
+    vi.spyOn(prisma.semesterCourse, 'count').mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    vi.spyOn(prisma.lecture, 'aggregate').mockResolvedValue({ _max: { number: 3 } } as never);
+    const create = vi.spyOn(prisma.lecture, 'create').mockResolvedValue({
+      id: 'lecture-4', courseId: 'course-a', number: 4, title: 'Backlogged Lecture 4',
+      lectureDate: new Date('2026-09-21'), takenAtUniversity: false, durationMinutes: 75,
+      deliveryMode: 'ONLINE', attended: false, state: 'STUDIED', understandingScore: null,
+      notes: 'QA note', needsReview: true, studiedAt: null, lastReviewedAt: null,
+      masteredAt: null, createdAt: new Date(), updatedAt: new Date(),
+      course: { id: 'course-a', difficulty: 7, catalog: { courseCode: 'QA101', nameEn: 'QA', nameAr: 'اختبار', defaultCredits: 3, archived: false } },
+    } as never);
+
+    const response = await request(userApp()).post('/api/lectures').send({
+      courseId: 'course-a', lectureDate: '2026-09-21', durationMinutes: 75,
+      deliveryMode: 'ONLINE', attended: false, needsReview: true, notes: 'QA note', state: 'STUDIED',
+    });
+
+    expect(response.status).toBe(201);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        number: 4, title: 'Backlogged Lecture 4', durationMinutes: 75,
+        deliveryMode: 'ONLINE', attended: false, needsReview: true, takenAtUniversity: false,
+      }),
+    }));
+  });
+
+  it('persists editable lecture backlog fields', async () => {
+    vi.spyOn(prisma.lecture, 'findFirst').mockResolvedValue({ id: 'lecture-1', courseId: 'course-a' } as never);
+    const update = vi.spyOn(prisma.lecture, 'update').mockResolvedValue({
+      id: 'lecture-1', courseId: 'course-a', number: 1, title: 'Existing lecture',
+      lectureDate: new Date('2026-09-22'), takenAtUniversity: true, durationMinutes: 90,
+      deliveryMode: 'IN_PERSON', attended: true, state: 'TAKEN_NOT_STUDIED', understandingScore: null,
+      notes: 'Updated', needsReview: false, studiedAt: null, lastReviewedAt: null,
+      masteredAt: null, createdAt: new Date(), updatedAt: new Date(),
+      course: { id: 'course-a', catalog: { courseCode: 'QA101', nameEn: 'QA', nameAr: 'اختبار', defaultCredits: 3, archived: false } },
+    } as never);
+
+    const response = await request(userApp()).patch('/api/lectures/lecture-1').send({
+      lectureDate: '2026-09-22', durationMinutes: 90, deliveryMode: 'IN_PERSON',
+      attended: true, needsReview: false, notes: 'Updated',
+    });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        durationMinutes: 90, deliveryMode: 'IN_PERSON', attended: true,
+        needsReview: false, notes: 'Updated', takenAtUniversity: true,
+      }),
+    }));
+  });
+});
+
 describe('planning isolation', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

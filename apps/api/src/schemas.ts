@@ -5,10 +5,13 @@ const boundedProgress = z.coerce.number().int().min(0).max(100);
 
 export const lectureInput = z.object({
   courseId: z.string().min(1),
-  number: z.coerce.number().int().positive(),
-  title: z.string().min(2).max(160),
+  number: z.coerce.number().int().positive().optional(),
+  title: z.string().min(2).max(160).optional(),
   lectureDate: z.coerce.date(),
-  takenAtUniversity: z.boolean().default(true),
+  takenAtUniversity: z.boolean().optional(),
+  durationMinutes: z.coerce.number().int().min(1).max(1440).default(60),
+  deliveryMode: z.enum(['IN_PERSON', 'ONLINE']).default('IN_PERSON'),
+  attended: z.boolean().default(false),
   state: z.enum(['TAKEN_NOT_STUDIED', 'STUDIED', 'NEEDS_REVIEW', 'MASTERED']).default('TAKEN_NOT_STUDIED'),
   understandingScore: z.coerce.number().int().min(1).max(10).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),

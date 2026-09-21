@@ -38,6 +38,11 @@ enum LectureState {
   MASTERED
 }
 
+enum LectureDeliveryMode {
+  IN_PERSON
+  ONLINE
+}
+
 enum WorkStatus {
   NOT_STARTED
   IN_PROGRESS
@@ -319,6 +324,9 @@ model Lecture {
   title              String
   lectureDate        DateTime
   takenAtUniversity  Boolean        @default(true)
+  durationMinutes    Int            @default(60)
+  deliveryMode       LectureDeliveryMode @default(IN_PERSON)
+  attended           Boolean        @default(false)
   state              LectureState   @default(TAKEN_NOT_STUDIED)
   understandingScore Int?
   notes              String?

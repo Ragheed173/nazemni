@@ -13,16 +13,18 @@ import { StatusBadge } from '../components/StatusBadge';
 type Field = {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox';
+  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox' | 'radio';
   required?: boolean;
   options?: string[];
   defaultValue?: string | number | boolean;
+  placeholder?: string;
 };
 
 export type EntityConfig = {
   resource: string;
   translationKey: string;
   fields: Field[];
+  editFields?: Field[];
   titleKey?: string;
   statusKey?: string;
   dateKey?: string;
@@ -34,13 +36,16 @@ export const entityConfigs: Record<string, EntityConfig> = {
     resource: '/lectures', translationKey: 'lectures', titleKey: 'title', statusKey: 'state', dateKey: 'lectureDate',
     fields: [
       { key: 'courseId', label: 'common.course', type: 'select', required: true },
-      { key: 'number', label: 'entities.lectures.number', type: 'number', required: true },
-      { key: 'title', label: 'common.title', required: true },
       { key: 'lectureDate', label: 'entities.lectures.lectureDate', type: 'date', required: true },
-      { key: 'state', label: 'entities.lectures.state', type: 'select', options: ['TAKEN_NOT_STUDIED', 'STUDIED', 'NEEDS_REVIEW', 'MASTERED'], defaultValue: 'TAKEN_NOT_STUDIED' },
-      { key: 'understandingScore', label: 'entities.lectures.understanding', type: 'number' },
-      { key: 'needsReview', label: 'entities.lectures.needsReview', type: 'checkbox' },
+      { key: 'durationMinutes', label: 'entities.lectures.duration', type: 'number', required: true, placeholder: 'entities.lectures.durationPlaceholder' },
+      { key: 'deliveryMode', label: 'entities.lectures.deliveryMode', type: 'radio', required: true, options: ['IN_PERSON', 'ONLINE'], defaultValue: 'IN_PERSON' },
+      { key: 'attended', label: 'entities.lectures.attended', type: 'radio', required: true, options: ['true', 'false'], defaultValue: false },
+      { key: 'needsReview', label: 'entities.lectures.reviewToggle', type: 'checkbox', defaultValue: false },
       { key: 'notes', label: 'common.notes', type: 'textarea' },
+    ],
+    editFields: [
+      { key: 'state', label: 'entities.lectures.state', type: 'select', options: ['TAKEN_NOT_STUDIED', 'STUDIED', 'NEEDS_REVIEW', 'MASTERED'] },
+      { key: 'understandingScore', label: 'entities.lectures.understanding', type: 'number' },
     ],
   },
   tasks: {
@@ -178,6 +183,7 @@ export function EntityPage({ config }: { config: EntityConfig }) {
                 <strong>{String(item[config.titleKey ?? 'title'])}</strong>
                 {config.progressKey && <small>{t('common.progress')}: {Number(item[config.progressKey])}%</small>}
                 {config.translationKey === 'grades' && <small>{Number(item.score)}/{Number(item.maximumScore)} · {Math.round(Number(item.score) / Number(item.maximumScore) * 100)}%</small>}
+                {config.translationKey === 'lectures' && <small>{Number(item.durationMinutes) || 0} {t('common.minutes')} · {item.deliveryMode === 'ONLINE' ? t('common.online') : t('common.inPerson')} · {item.attended ? t('entities.lectures.attendance.true') : t('entities.lectures.attendance.false')}</small>}
                 {config.translationKey === 'projects' && Array.isArray(item.milestones) && item.milestones.length > 0 && (
                   <div className="milestone-list">
                     {item.milestones.map((milestone) => {
@@ -210,11 +216,12 @@ export function EntityPage({ config }: { config: EntityConfig }) {
 function EntityForm({ open, onClose, config, initialCourseId, record = null }: { open: boolean; onClose: () => void; config: EntityConfig; initialCourseId: string | null; record?: EntityRecord | null }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
-  const defaults = useMemo(() => Object.fromEntries(config.fields.map((field) => {
+  const formFields = useMemo(() => record && config.editFields ? [...config.fields, ...config.editFields] : config.fields, [config, record]);
+  const defaults = useMemo(() => Object.fromEntries(formFields.map((field) => {
     const recordValue = record?.[field.key];
     const value = recordValue ?? (field.key === 'courseId' && initialCourseId ? initialCourseId : field.defaultValue ?? (field.type === 'checkbox' ? false : ''));
     return [field.key, field.type === 'date' && value ? String(value).slice(0, 10) : value];
-  })), [config, initialCourseId, record]);
+  })), [formFields, initialCourseId, record]);
   const [form, setForm] = useState<Record<string, unknown>>(defaults);
   useEffect(() => setForm(defaults), [defaults, open]);
   const courses = useQuery({ queryKey: ['courses'], queryFn: () => api<Course[]>('/courses'), enabled: open });
@@ -227,10 +234,10 @@ function EntityForm({ open, onClose, config, initialCourseId, record = null }: {
   const submit = (event: FormEvent) => { event.preventDefault(); save.mutate(); };
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onMouseDown={(e) => e.stopPropagation()}>
-        <h2 id="entity-form-title">{record ? t('common.edit') : t('entities.' + config.translationKey + '.add')}</h2>
+      <section className={'modal-panel ' + (config.translationKey === 'lectures' ? 'lecture-modal' : '')} role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onMouseDown={(e) => e.stopPropagation()}>
+        <h2 id="entity-form-title">{record ? t('common.edit') : config.translationKey === 'lectures' ? t('entities.lectures.backloggedAdd') : t('entities.' + config.translationKey + '.add')}</h2>
         <form onSubmit={submit} className="entity-form">
-          {config.fields.filter((field) => !record || field.key !== 'addDefaultMilestones').map((field) => (
+          {formFields.filter((field) => !record || field.key !== 'addDefaultMilestones').map((field) => (
             <label className={'field ' + (field.type === 'textarea' ? 'full-field' : '')} key={field.key}>
               <span>{t(field.label)}{!field.required && field.type !== 'checkbox' && <small> ({t('common.optional')})</small>}</span>
               {field.key === 'courseId' ? (
@@ -241,12 +248,20 @@ function EntityForm({ open, onClose, config, initialCourseId, record = null }: {
                 <select required={field.required} value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}>
                   {field.options?.map((option) => <option key={option} value={option}>{t('states.' + option, { defaultValue: option })}</option>)}
                 </select>
+              ) : field.type === 'radio' ? (
+                <div className="choice-cards" role="radiogroup" aria-label={t(field.label)}>
+                  {field.options?.map((option, index) => {
+                    const checked = field.key === 'attended' ? String(Boolean(form[field.key])) === option : String(form[field.key] ?? '') === option;
+                    const optionKey = field.key === 'deliveryMode' ? 'entities.lectures.deliveryModes.' + option : 'entities.lectures.attendance.' + option;
+                    return <label className={'choice-card' + (checked ? ' selected' : '')} key={option}><input type="radio" name={field.key} value={option} required={field.required && index === 0} checked={checked} onChange={() => setForm({ ...form, [field.key]: field.key === 'attended' ? option === 'true' : option })} /><span>{t(optionKey, { defaultValue: option })}</span></label>;
+                  })}
+                </div>
               ) : field.type === 'textarea' ? (
                 <textarea value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
               ) : field.type === 'checkbox' ? (
                 <input type="checkbox" checked={Boolean(form[field.key])} onChange={(e) => setForm({ ...form, [field.key]: e.target.checked })} />
               ) : (
-                <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 0 : undefined} step={field.type === 'number' ? 'any' : undefined} value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
+                <input type={field.type ?? 'text'} placeholder={field.placeholder ? t(field.placeholder) : undefined} required={field.required} min={field.type === 'number' ? 0 : undefined} step={field.type === 'number' ? 'any' : undefined} value={String(form[field.key] ?? '')} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
               )}
             </label>
           ))}

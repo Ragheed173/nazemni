@@ -140,7 +140,27 @@ entityRouter.post('/lectures', async (req, res) => {
   const userId = authUser(res).id;
   const input = lectureInput.parse(req.body);
   await ensureOwnedCourse(userId, input.courseId);
-  const lecture = await prisma.lecture.create({ data: input, include: { course: { include: { catalog: true } } } });
+  const activeCourse = await prisma.semesterCourse.count({ where: { id: input.courseId, ...activeEnrollmentFilter(userId) } });
+  if (!activeCourse) throw new AppError(404, 'Resource not found');
+  const nextNumber = input.number ?? ((await prisma.lecture.aggregate({ where: { courseId: input.courseId }, _max: { number: true } }))._max.number ?? 0) + 1;
+  const deliveryMode = req.body.deliveryMode ? input.deliveryMode : (input.takenAtUniversity === false ? 'ONLINE' : input.deliveryMode);
+  const lecture = await prisma.lecture.create({
+    data: {
+      courseId: input.courseId,
+      number: nextNumber,
+      title: input.title ?? `Backlogged Lecture ${nextNumber}`,
+      lectureDate: input.lectureDate,
+      takenAtUniversity: deliveryMode === 'IN_PERSON',
+      durationMinutes: input.durationMinutes,
+      deliveryMode,
+      attended: input.attended,
+      state: input.state,
+      understandingScore: input.understandingScore,
+      notes: input.notes,
+      needsReview: input.needsReview,
+    },
+    include: { course: { include: { catalog: true } } },
+  });
   if (lecture.state === 'TAKEN_NOT_STUDIED') {
     await prisma.studyTask.create({
       data: {
@@ -164,6 +184,7 @@ entityRouter.patch('/lectures/:id', async (req, res) => {
   if (input.courseId) await ensureOwnedCourse(userId, input.courseId);
   const data = {
     ...input,
+    ...(input.deliveryMode ? { takenAtUniversity: input.deliveryMode === 'IN_PERSON' } : {}),
     studiedAt: input.state && input.state !== 'TAKEN_NOT_STUDIED' ? new Date() : undefined,
     masteredAt: input.state === 'MASTERED' ? new Date() : undefined,
   };

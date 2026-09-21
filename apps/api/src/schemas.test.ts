@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { semesterCourseCreateInput, semesterCourseUpdateInput } from './schemas.js';
+import { lectureInput, semesterCourseCreateInput, semesterCourseUpdateInput } from './schemas.js';
 
 describe('semester enrollment configuration', () => {
   it('accepts a new catalog course with schedule and multiple quizzes', () => {
@@ -27,5 +27,39 @@ describe('semester enrollment configuration', () => {
   it('allows difficulty and retake to change independently of catalog data', () => {
     const result = semesterCourseUpdateInput.parse({ difficulty: 9, retake: true, previousGrade: 1.5 });
     expect(result).toEqual({ difficulty: 9, retake: true, previousGrade: 1.5 });
+  });
+});
+
+describe('lecture backlog input', () => {
+  it('accepts the new lecture fields without a visible title or number', () => {
+    const result = lectureInput.parse({
+      courseId: 'course-1',
+      lectureDate: '2026-09-21',
+      durationMinutes: 75,
+      deliveryMode: 'ONLINE',
+      attended: false,
+      needsReview: true,
+      notes: 'Review the examples.',
+    });
+
+    expect(result).toMatchObject({
+      courseId: 'course-1',
+      durationMinutes: 75,
+      deliveryMode: 'ONLINE',
+      attended: false,
+      needsReview: true,
+    });
+    expect(result.title).toBeUndefined();
+    expect(result.number).toBeUndefined();
+  });
+
+  it('rejects an invalid duration and delivery mode', () => {
+    expect(() => lectureInput.parse({
+      courseId: 'course-1',
+      lectureDate: '2026-09-21',
+      durationMinutes: 0,
+      deliveryMode: 'RECORDED',
+      attended: true,
+    })).toThrow();
   });
 });
