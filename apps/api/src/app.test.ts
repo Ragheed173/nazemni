@@ -44,6 +44,7 @@ describe('application security boundary', () => {
     const response = await request(app()).get('/api/courses');
     expect(response.status).toBe(401);
     expect((await request(app()).get('/api/ai/status')).status).toBe(401);
+    expect((await request(app()).get('/api/course-intelligence/status')).status).toBe(401);
   });
 
   it('serves the public landing and authentication pages', async () => {

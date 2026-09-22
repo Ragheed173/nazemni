@@ -15,6 +15,9 @@ import type { AIProvider } from './ai/provider.js';
 import { defaultAIRuntimeConfig, type AIRuntimeConfig } from './ai/service.js';
 import { prisma } from './db.js';
 import { durableRateLimit, recordSecurityEvent, rejectOversizedRequest, requireTrustedOrigin } from './security.js';
+import { createCourseIntelligenceRouter } from './routes/course-intelligence.js';
+import type { CourseIntelligenceService } from './course-intelligence/service.js';
+import { defaultCourseIntelligenceConfig, type CourseIntelligenceRuntimeConfig } from './course-intelligence/types.js';
 
 type AppOptions = {
   webOrigin?: string;
@@ -25,6 +28,8 @@ type AppOptions = {
   secureCookie?: boolean;
   aiConfig?: AIRuntimeConfig;
   aiProvider?: AIProvider;
+  courseIntelligenceConfig?: CourseIntelligenceRuntimeConfig;
+  courseIntelligenceService?: CourseIntelligenceService;
 };
 
 export function createApp({
@@ -36,6 +41,8 @@ export function createApp({
   secureCookie = false,
   aiConfig = defaultAIRuntimeConfig,
   aiProvider,
+  courseIntelligenceConfig = defaultCourseIntelligenceConfig,
+  courseIntelligenceService,
 }: AppOptions) {
   const app = express();
   if (secureCookie) app.set('trust proxy', 1);
@@ -146,6 +153,7 @@ export function createApp({
   app.use('/api/account', requireAuth, createAccountRouter());
   app.use('/api/admin', requireAuth, createAdminRouter(registrationMode));
   app.use('/api/ai', requireAuth, createAIRouter(aiConfig, aiProvider));
+  app.use('/api/course-intelligence', requireAuth, createCourseIntelligenceRouter(courseIntelligenceConfig, courseIntelligenceService));
   app.use('/api', requireAuth, entityRouter);
   app.use('/api', requireAuth, planningRouter);
   app.use('/api', requireAuth, semesterManagementRouter);

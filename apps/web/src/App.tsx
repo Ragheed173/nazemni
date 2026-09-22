@@ -18,6 +18,7 @@ import { OnboardingPage } from './pages/Onboarding';
 import { ProfilePage } from './pages/Profile';
 import { AdminPage } from './pages/Admin';
 import { AIPage } from './pages/AI';
+import { CourseIntelligencePage } from './pages/CourseIntelligence';
 
 function RequireAuthentication({ children }: { children: ReactNode }) {
   const { session, isLoading } = useAuth();
@@ -64,6 +65,7 @@ export function App() {
           <Route path="semester" element={<SemesterManagementPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="ai" element={<AIPage />} />
+          <Route path="course-intelligence" element={<CourseIntelligencePage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

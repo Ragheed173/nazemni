@@ -56,6 +56,10 @@ export class OpenAIResponsesProvider implements AIProvider {
   }
 
   async generateResponse(input: AIGenerateInput): Promise<AIGenerateResult> {
+    return this.request(input);
+  }
+
+  private async request(input: AIGenerateInput, structuredSchema?: Record<string, unknown>): Promise<AIGenerateResult> {
     const continuation = (input.continuationItems ?? []).map((item) => item.type === 'tool_call'
       ? { type: 'function_call', call_id: item.id, name: item.name, arguments: JSON.stringify(item.arguments) }
       : { type: 'function_call_output', call_id: item.callId, output: JSON.stringify(item.output) });
@@ -66,6 +70,10 @@ export class OpenAIResponsesProvider implements AIProvider {
       tools: input.tools.map((tool) => ({ type: 'function', ...tool, strict: false })),
       input: [...input.messages, ...continuation],
     };
+    if (structuredSchema) {
+      body.text = { format: { type: 'json_schema', name: 'nazemni_structured_output', schema: structuredSchema, strict: true } };
+      body.reasoning = { effort: 'low' };
+    }
     const response = await fetch(this.baseUrl + '/responses', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
@@ -102,7 +110,7 @@ export class OpenAIResponsesProvider implements AIProvider {
   toolCalling(input: AIGenerateInput) { return this.generateResponse(input); }
 
   async structuredOutput<T>(input: AIGenerateInput, schema: Record<string, unknown>): Promise<T> {
-    const result = await this.generateResponse({ ...input, instructions: input.instructions + '\nReturn JSON matching: ' + JSON.stringify(schema) });
+    const result = await this.request({ ...input, instructions: input.instructions + '\nReturn only valid JSON matching the provided schema.' }, schema);
     return JSON.parse(result.text) as T;
   }
 

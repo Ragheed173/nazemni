@@ -129,6 +129,20 @@ enum AIMessageRole {
   ASSISTANT
 }
 
+enum CourseCatalogStatus {
+  VERIFIED
+  PARTIAL
+  NOT_VERIFIED
+}
+
+enum CourseCatalogSourceType {
+  OFFICIAL_CATALOG
+  OFFICIAL_DEPARTMENT
+  OFFICIAL_SYLLABUS
+  UNIVERSITY_DOCUMENT
+  SECONDARY
+}
+
 model User {
   id                String           @id @default(cuid())
   name              String
@@ -325,9 +339,55 @@ model SemesterCourse {
   weakTopics           WeakTopic[]
   reviews              Review[]
   weeklyCoverage       WeeklyCourseCoverage[]
+  catalogEntryId       String?
+  catalogEntry         CourseCatalogEntry?    @relation(fields: [catalogEntryId], references: [id], onDelete: SetNull)
 
   @@unique([semesterId, courseId])
   @@index([semesterId, enrollmentStatus])
+  @@index([catalogEntryId])
+}
+
+model CourseCatalogEntry {
+  id                   String              @id @default(cuid())
+  university           String
+  universityNormalized String
+  program              String
+  programNormalized    String
+  courseCode           String
+  courseCodeNormalized String
+  courseName           String
+  credits              Int?
+  description          String?
+  prerequisites        String[]
+  topics               String[]
+  assessmentInfo       String[]
+  officialUrl          String?
+  status               CourseCatalogStatus @default(NOT_VERIFIED)
+  confidence           Float               @default(0)
+  lastVerifiedAt       DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  sources              CourseCatalogSource[]
+  semesterCourses      SemesterCourse[]
+
+  @@unique([universityNormalized, programNormalized, courseCodeNormalized], map: "CourseCatalogEntry_identity_key")
+  @@index([universityNormalized, programNormalized, courseName], map: "CourseCatalogEntry_name_lookup_idx")
+  @@index([lastVerifiedAt])
+}
+
+model CourseCatalogSource {
+  id          String                  @id @default(cuid())
+  entryId     String
+  url         String
+  sourceType  CourseCatalogSourceType
+  title       String
+  excerpt     String?
+  isOfficial  Boolean                 @default(false)
+  retrievedAt DateTime                @default(now())
+  entry       CourseCatalogEntry      @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, url])
+  @@index([entryId, isOfficial])
 }
 
 model ScheduleSlot {

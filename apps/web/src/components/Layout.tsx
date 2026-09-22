@@ -20,6 +20,7 @@ export function Layout() {
   const { logout, session } = useAuth();
   const [open, setOpen] = useState(false);
   const aiStatus = useQuery({ queryKey: ['ai-status'], queryFn: () => api<{ enabled: boolean }>('/ai/status'), staleTime: 60_000, retry: false });
+  const courseIntelligenceStatus = useQuery({ queryKey: ['course-intelligence-status'], queryFn: () => api<{ enabled: boolean }>('/course-intelligence/status'), staleTime: 60_000, retry: false });
   const close = () => setOpen(false);
   return (
     <div className="app-shell">
@@ -38,6 +39,7 @@ export function Layout() {
           <div className="nav-primary">
             {nav.slice(0, 7).map(([key, to]) => <NavLink key={key} to={to} onClick={close}>{t('nav.' + key)}</NavLink>)}
             {aiStatus.data?.enabled && <NavLink to="/ai" onClick={close}>{t('nav.ai')}</NavLink>}
+            {courseIntelligenceStatus.data?.enabled && <NavLink to="/course-intelligence" onClick={close}>{t('nav.courseIntelligence')}</NavLink>}
           </div>
           <div className="nav-section">
             {nav.slice(7).map(([key, to]) => <NavLink key={key} to={to} onClick={close}>{t('nav.' + key)}</NavLink>)}
