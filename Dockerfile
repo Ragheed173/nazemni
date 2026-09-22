@@ -17,7 +17,7 @@ COPY . .
 
 RUN npm run db:generate \
   && npm run build \
-  && npm prune --omit=dev --omit=optional
+  && npm prune --omit=dev
 
 FROM node:24.13.0-bookworm-slim AS runtime
 
