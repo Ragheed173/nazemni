@@ -27,6 +27,9 @@ function RequireAuthentication({ children }: { children: ReactNode }) {
     const returnTo = location.pathname + location.search;
     return <Navigate to={'/login?returnTo=' + encodeURIComponent(returnTo)} replace />;
   }
+  if (session.user.role === 'ADMIN' && !session.user.twoFactorEnabled && location.pathname !== '/profile') {
+    return <Navigate to="/profile?security=two-factor" replace />;
+  }
   return children;
 }
 

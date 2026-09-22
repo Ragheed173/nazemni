@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   prisma: {
+    $queryRaw: vi.fn(),
+    rateLimit: { deleteMany: vi.fn() },
     semesterCourse: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     assessmentComponent: { count: vi.fn() },
     studyTask: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
@@ -45,6 +47,8 @@ beforeEach(() => {
   mocks.prisma.aIUsage.aggregate.mockResolvedValue({ _sum: { requestCount: 0, errorCount: 0 } });
   mocks.prisma.aIUsage.upsert.mockResolvedValue({});
   mocks.prisma.appSettings.findUnique.mockResolvedValue({ timezone: 'Asia/Hebron', language: 'en' });
+  mocks.prisma.$queryRaw.mockResolvedValue([{ count: 1, lastRequest: BigInt(Date.now()) }]);
+  mocks.prisma.rateLimit.deleteMany.mockResolvedValue({ count: 0 });
   mocks.study.getDailyPlan.mockResolvedValue({ groups: { CRITICAL: [], IMPORTANT: [], OPTIONAL: [] }, empty: true });
   mocks.study.getBacklog.mockResolvedValue([]);
   mocks.study.getWeeklyReview.mockResolvedValue({});
@@ -130,6 +134,9 @@ describe('AI orchestration safety', () => {
     mocks.prisma.aIMessage.findFirst.mockResolvedValue(null);
     mocks.prisma.aIMessage.findMany.mockResolvedValue([{ role: 'USER', content: 'hello' }]);
     mocks.prisma.aIMessage.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'message', ...data, createdAt: new Date() }));
+    mocks.prisma.$queryRaw
+      .mockResolvedValueOnce([{ count: 1, lastRequest: BigInt(Date.now()) }])
+      .mockResolvedValueOnce([{ count: 2, lastRequest: BigInt(Date.now()) }]);
     const app = express(); app.use(express.json()); app.use((_request, response, next) => { response.locals.authUser = user; next(); }); app.use('/api/ai', createAIRouter(enabled, new MockAIProvider())); app.use(errorHandler);
     expect((await request(app).post('/api/ai/conversations/conversation-a/messages').send({ message: 'hello' })).status).toBe(201);
     expect((await request(app).post('/api/ai/conversations/conversation-a/messages').send({ message: 'again' })).status).toBe(429);

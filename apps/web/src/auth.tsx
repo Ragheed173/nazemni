@@ -14,13 +14,17 @@ export type AuthSession = {
     role: 'USER' | 'ADMIN';
     status: 'ACTIVE' | 'DISABLED';
     preferredLanguage: 'ar' | 'en';
+    twoFactorEnabled: boolean;
   };
 };
 type Credentials = { identifier: string; password: string };
 type AuthContextValue = {
   session: AuthSession | null | undefined;
   isLoading: boolean;
-  login(credentials: Credentials): Promise<void>;
+  login(credentials: Credentials): Promise<{ requiresTwoFactor: boolean }>;
+  verifyTwoFactor(code: string, backupCode?: boolean): Promise<void>;
+  enableTwoFactor(password: string): Promise<{ totpURI: string; backupCodes: string[] }>;
+  disableTwoFactor(password: string): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
 };
@@ -62,10 +66,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async ({ identifier, password }: Credentials) => {
     const isEmail = identifier.includes('@');
-    await authRequest(isEmail ? '/sign-in/email' : '/sign-in/username', {
+    const result = await authRequest<{ twoFactorRedirect?: boolean }>(isEmail ? '/sign-in/email' : '/sign-in/username', {
       method: 'POST',
       body: JSON.stringify(isEmail ? { email: identifier.trim().toLowerCase(), password } : { username: identifier.trim().toLowerCase(), password }),
     });
+    if (result.twoFactorRedirect) return { requiresTwoFactor: true };
+    await queryClient.invalidateQueries({ queryKey: authKey });
+    await queryClient.fetchQuery({ queryKey: authKey });
+    return { requiresTwoFactor: false };
+  };
+
+  const verifyTwoFactor = async (code: string, backupCode = false) => {
+    await authRequest(backupCode ? '/two-factor/verify-backup-code' : '/two-factor/verify-totp', {
+      method: 'POST',
+      body: JSON.stringify({ code: code.trim(), trustDevice: false }),
+    });
+    await queryClient.invalidateQueries({ queryKey: authKey });
+    await queryClient.fetchQuery({ queryKey: authKey });
+  };
+
+  const enableTwoFactor = async (password: string) => authRequest<{ method: 'totp'; totpURI: string; backupCodes: string[] }>('/two-factor/enable', {
+    method: 'POST',
+    body: JSON.stringify({ password, method: 'totp' }),
+  });
+
+  const disableTwoFactor = async (password: string) => {
+    await authRequest('/two-factor/disable', { method: 'POST', body: JSON.stringify({ password }) });
     await queryClient.invalidateQueries({ queryKey: authKey });
     await queryClient.fetchQuery({ queryKey: authKey });
   };
@@ -88,6 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session: sessionQuery.data,
       isLoading: sessionQuery.isPending,
       login,
+      verifyTwoFactor,
+      enableTwoFactor,
+      disableTwoFactor,
       logout,
       refresh,
     }}>

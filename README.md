@@ -64,11 +64,9 @@ The web app runs at http://localhost:5173; the API runs at http://localhost:4000
 
 ## Deployment
 
-The production deployment uses `compose.server.yml`: PostgreSQL and the Express/React application stay in Docker, port 8380 is bound to localhost only, and Cloudflare Tunnel provides HTTPS ingress. The container applies committed migrations and runs the idempotent owner migration before starting Express. It never runs the seed.
+Production uses a Vercel frontend, the Render Express API, and Neon PostgreSQL. Apply committed migrations separately with `DIRECT_URL` and `npm run db:deploy` before deploying the API. The runtime container intentionally starts only Express; it does not contain the Prisma migration CLI, run seed data, or apply migrations with the lower-privilege application process.
 
-Set the variables from `.env.example` in a server-only environment file, then run `docker compose --env-file .env.server -f compose.server.yml up -d --build`. Keep `.env.server`, the Better Auth secret, the database password, and the owner password hash out of Git.
-
-`render.yaml` remains an optional full-stack deployment template. It applies migrations and the owner migration, but does not seed production.
+Keep all database URLs, the Better Auth secret, provider keys, and migration credentials in the hosting providers' encrypted environment settings. Never place them in Git or Vite-prefixed variables.
 
 ## Structure
 

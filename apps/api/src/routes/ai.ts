@@ -1,4 +1,3 @@
-import rateLimit from 'express-rate-limit';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authUser } from '../auth.js';
@@ -6,21 +5,18 @@ import { prisma } from '../db.js';
 import { AppError } from '../errors.js';
 import { AIProviderError, type AIProvider } from '../ai/provider.js';
 import { getAIRuntimeMetrics, recordAIRateLimit, runAIConversation, type AIRuntimeConfig } from '../ai/service.js';
+import { durableRateLimit } from '../security.js';
 
 const ok = (data: unknown) => ({ ok: true, data });
 
 export function createAIRouter(config: AIRuntimeConfig, provider?: AIProvider) {
   const router = Router();
-  const limiter = rateLimit({
+  const limiter = durableRateLimit({
+    namespace: 'ai-message',
     windowMs: 60_000,
     limit: config.requestsPerMinute,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    keyGenerator: (_request, response) => authUser(response).id,
-    handler: (_request, response) => {
-      recordAIRateLimit('internal');
-      response.status(429).json({ ok: false, error: { code: 'AI_RATE_LIMIT', message: 'AI request limit reached' } });
-    },
+    key: (_request, response) => authUser(response).id,
+    onLimit: () => recordAIRateLimit('internal'),
   });
 
   router.get('/status', (_request, response) => response.json(ok({ enabled: config.enabled, provider: config.enabled ? config.providerName : null, model: config.enabled ? config.model : null })));
@@ -68,7 +64,13 @@ export function createAIRouter(config: AIRuntimeConfig, provider?: AIProvider) {
     try {
       response.status(201).json(ok(await runAIConversation({ userId: user.id, language: settings?.language ?? user.preferredLanguage, timezone: settings?.timezone ?? 'Asia/Hebron', conversationId: String(request.params.id), message: input.message, provider: provider!, config })));
     } catch (error) {
-      request.log.error({ event: 'ai_request_failed', userId: user.id, conversationId: request.params.id, error: error instanceof Error ? error.message : 'unknown' }, 'AI request failed');
+      request.log.error({
+        event: 'ai_request_failed',
+        userId: user.id,
+        conversationId: request.params.id,
+        errorType: error instanceof Error ? error.name : typeof error,
+        providerStatus: error instanceof AIProviderError ? error.status : undefined,
+      }, 'AI request failed');
       const providerBusy = user.preferredLanguage === 'ar' ? 'المساعد مشغول حاليًا بسبب حد الاستخدام المؤقت. جرّب مرة ثانية بعد أقل من دقيقة.' : 'The assistant is temporarily busy because of its usage limit. Try again in less than a minute.';
       if (error instanceof AIProviderError && error.status === 429) throw new AppError(429, providerBusy, 'AI_PROVIDER_RATE_LIMIT');
       if (error instanceof AppError && error.status === 429 && ['AI_CAPACITY_LIMIT', 'AI_CONCURRENCY_LIMIT'].includes(error.code ?? '')) throw new AppError(429, providerBusy, error.code);

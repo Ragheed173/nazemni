@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lectureInput, semesterCourseCreateInput, semesterCourseUpdateInput } from './schemas.js';
+import { lectureInput, milestoneInput, semesterCourseCreateInput, semesterCourseUpdateInput, taskInput } from './schemas.js';
 
 describe('semester enrollment configuration', () => {
   it('accepts a new catalog course with schedule and multiple quizzes', () => {
@@ -61,5 +61,24 @@ describe('lecture backlog input', () => {
       deliveryMode: 'RECORDED',
       attended: true,
     })).toThrow();
+  });
+});
+
+describe('mass-assignment protections', () => {
+  it.each([
+    ['userId', 'other-user'],
+    ['ownerId', 'other-user'],
+    ['role', 'ADMIN'],
+    ['sessionId', 'other-session'],
+  ])('rejects the sensitive %s field', (field, value) => {
+    expect(() => taskInput.parse({
+      courseId: 'course-1', title: 'Safe task', type: 'OTHER', [field]: value,
+    })).toThrow();
+  });
+
+  it('validates milestone updates strictly', () => {
+    expect(milestoneInput.parse({ title: 'Validated milestone', dueAt: '2026-09-30' })).toMatchObject({ title: 'Validated milestone' });
+    expect(() => milestoneInput.parse({ status: 'COMPLETED', userId: 'other-user' })).toThrow();
+    expect(() => milestoneInput.parse({ status: 'INVALID' })).toThrow();
   });
 });

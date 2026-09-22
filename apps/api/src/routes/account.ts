@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
-import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { priorityWeights } from '@nazemni/shared';
 import {
@@ -15,16 +14,21 @@ import {
 } from '../auth.js';
 import { prisma } from '../db.js';
 import { AppError } from '../errors.js';
+import {
+  durableRateLimit,
+  isKnownWeakPassword,
+  recordSecurityEvent,
+  requireRecentAuthentication,
+} from '../security.js';
 
 const ok = (data: unknown) => ({ ok: true, data });
 
 export function createPublicAccountRouter(registrationMode: RegistrationMode) {
   const router = Router();
-  const registrationLimiter = rateLimit({
+  const registrationLimiter = durableRateLimit({
+    namespace: 'registration',
     windowMs: 15 * 60 * 1000,
     limit: 8,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
   });
 
   router.get('/registration', (_request, response) => {
@@ -83,6 +87,7 @@ export function createPublicAccountRouter(registrationMode: RegistrationMode) {
         return created;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       request.log.info({ event: 'account_created', userId: user.id }, 'Account created');
+      await recordSecurityEvent({ event: 'ACCOUNT_CREATED', actorUserId: user.id, targetType: 'USER', targetId: user.id, request });
       response.status(201).json(ok(user));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -99,6 +104,14 @@ export function createPublicAccountRouter(registrationMode: RegistrationMode) {
 
 export function createAccountRouter() {
   const router = Router();
+  const accountMutationLimit = durableRateLimit({
+    namespace: 'account-mutation', windowMs: 15 * 60_000, limit: 8,
+    key: (_request, response) => authUser(response).id,
+  });
+  const accountDeletionLimit = durableRateLimit({
+    namespace: 'account-deletion', windowMs: 60 * 60_000, limit: 3,
+    key: (_request, response) => authUser(response).id,
+  });
 
   router.get('/profile', (_request, response) => {
     const user = authUser(response);
@@ -118,7 +131,7 @@ export function createAccountRouter() {
     const input = z.object({
       displayName: z.string().trim().min(2).max(100).optional(),
       preferredLanguage: z.enum(['ar', 'en']).optional(),
-    }).parse(request.body);
+    }).strict().parse(request.body);
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: { name: input.displayName, displayUsername: input.displayName, preferredLanguage: input.preferredLanguage },
@@ -130,14 +143,18 @@ export function createAccountRouter() {
     response.json(ok({ ...updated, displayName: updated.name }));
   });
 
-  router.post('/change-password', async (request, response) => {
+  router.post('/change-password', accountMutationLimit, async (request, response) => {
     const user = authUser(response);
     const input = z.object({
       currentPassword: z.string().min(1).max(128),
       newPassword: z.string().min(10).max(128),
       confirmation: z.string().min(10).max(128),
-    }).refine((value) => value.newPassword === value.confirmation, {
+    }).strict().refine((value) => value.newPassword === value.confirmation, {
       path: ['confirmation'], message: 'Passwords do not match',
+    }).superRefine((value, context) => {
+      if (isKnownWeakPassword(value.newPassword)) {
+        context.addIssue({ code: 'custom', path: ['newPassword'], message: 'Choose a less common password' });
+      }
     }).parse(request.body);
     const account = await prisma.account.findFirst({ where: { userId: user.id, providerId: 'credential' } });
     if (!account?.password || !(await bcrypt.compare(input.currentPassword, account.password))) {
@@ -152,26 +169,29 @@ export function createAccountRouter() {
       }),
     ]);
     request.log.info({ event: 'password_changed', userId: user.id }, 'Password changed');
+    await recordSecurityEvent({ event: 'PASSWORD_CHANGED', actorUserId: user.id, targetType: 'USER', targetId: user.id, request });
     response.json(ok(null));
   });
 
-  router.post('/logout-all', async (request, response) => {
+  router.post('/logout-all', accountMutationLimit, async (request, response) => {
     const user = authUser(response);
     await prisma.session.deleteMany({ where: { userId: user.id } });
     request.log.info({ event: 'sessions_revoked', userId: user.id }, 'All sessions revoked');
+    await recordSecurityEvent({ event: 'SESSIONS_REVOKED', actorUserId: user.id, targetType: 'USER', targetId: user.id, request });
     response.json(ok(null));
   });
 
-  router.delete('/', async (request, response) => {
+  router.delete('/', accountDeletionLimit, async (request, response) => {
     const user = authUser(response);
     const input = z.object({
       password: z.string().min(1).max(128),
       confirmation: z.literal('DELETE'),
-    }).parse(request.body);
+    }).strict().parse(request.body);
     const account = await prisma.account.findFirst({ where: { userId: user.id, providerId: 'credential' } });
     if (!account?.password || !(await bcrypt.compare(input.password, account.password))) {
       throw new AppError(400, 'Password confirmation failed');
     }
+    await recordSecurityEvent({ event: 'ACCOUNT_DELETION_REQUESTED', actorUserId: user.id, targetType: 'USER', targetId: user.id, request });
     await prisma.$transaction(async (tx) => {
       await tx.semesterCourse.deleteMany({ where: { semester: { userId: user.id } } });
       await tx.semester.deleteMany({ where: { userId: user.id } });
@@ -188,6 +208,11 @@ export function createAccountRouter() {
 export function createAdminRouter(registrationMode: RegistrationMode) {
   const router = Router();
   router.use(requireAdmin);
+  const adminMutationLimit = durableRateLimit({
+    namespace: 'admin-mutation', windowMs: 15 * 60_000, limit: 30,
+    key: (_request, response) => authUser(response).id,
+  });
+  const recentAuthentication = requireRecentAuthentication();
 
   router.get('/summary', async (request, response) => {
     const take = z.coerce.number().int().min(1).max(100).catch(25).parse(request.query.take);
@@ -213,12 +238,12 @@ export function createAdminRouter(registrationMode: RegistrationMode) {
     }));
   });
 
-  router.post('/invites', async (request, response) => {
+  router.post('/invites', recentAuthentication, adminMutationLimit, async (request, response) => {
     const admin = authUser(response);
     const input = z.object({
       maxUses: z.coerce.number().int().min(1).max(10_000).optional().nullable(),
       expiresAt: z.coerce.date().optional().nullable(),
-    }).parse(request.body);
+    }).strict().parse(request.body);
     const code = generateInviteCode();
     const invite = await prisma.inviteCode.create({
       data: {
@@ -230,26 +255,30 @@ export function createAdminRouter(registrationMode: RegistrationMode) {
       },
     });
     request.log.info({ event: 'invite_created', adminId: admin.id, inviteId: invite.id }, 'Invite created');
+    await recordSecurityEvent({ event: 'INVITE_CREATED', actorUserId: admin.id, targetType: 'INVITE', targetId: invite.id, request });
     response.status(201).json(ok({ ...invite, code }));
   });
 
-  router.post('/invites/:id/revoke', async (request, response) => {
+  router.post('/invites/:id/revoke', recentAuthentication, adminMutationLimit, async (request, response) => {
     const admin = authUser(response);
-    const result = await prisma.inviteCode.updateMany({ where: { id: request.params.id }, data: { active: false } });
+    const inviteId = String(request.params.id);
+    const result = await prisma.inviteCode.updateMany({ where: { id: inviteId }, data: { active: false } });
     if (!result.count) throw new AppError(404, 'Resource not found');
-    request.log.info({ event: 'invite_revoked', adminId: admin.id, inviteId: request.params.id }, 'Invite revoked');
+    request.log.info({ event: 'invite_revoked', adminId: admin.id, inviteId }, 'Invite revoked');
+    await recordSecurityEvent({ event: 'INVITE_REVOKED', actorUserId: admin.id, targetType: 'INVITE', targetId: inviteId, request });
     response.json(ok(null));
   });
 
-  router.patch('/users/:id/status', async (request, response) => {
+  router.patch('/users/:id/status', recentAuthentication, adminMutationLimit, async (request, response) => {
     const admin = authUser(response);
-    const input = z.object({ status: z.enum(['ACTIVE', 'DISABLED']) }).parse(request.body);
-    if (admin.id === request.params.id && input.status === 'DISABLED') {
+    const targetUserId = String(request.params.id);
+    const input = z.object({ status: z.enum(['ACTIVE', 'DISABLED']) }).strict().parse(request.body);
+    if (admin.id === targetUserId && input.status === 'DISABLED') {
       throw new AppError(400, 'You cannot disable your own account');
     }
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
-        where: { id: request.params.id },
+        where: { id: targetUserId },
         data: { status: input.status },
         select: { id: true, email: true, username: true, role: true, status: true },
       });
@@ -257,6 +286,7 @@ export function createAdminRouter(registrationMode: RegistrationMode) {
       return updated;
     });
     request.log.info({ event: 'user_status_changed', adminId: admin.id, userId: user.id, status: user.status }, 'User status changed');
+    await recordSecurityEvent({ event: user.status === 'DISABLED' ? 'USER_DISABLED' : 'USER_ENABLED', actorUserId: admin.id, targetType: 'USER', targetId: user.id, request });
     response.json(ok(user));
   });
 

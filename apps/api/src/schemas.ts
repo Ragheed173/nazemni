@@ -16,7 +16,7 @@ export const lectureInput = z.object({
   understandingScore: z.coerce.number().int().min(1).max(10).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   needsReview: z.boolean().default(false),
-});
+}).strict();
 
 export const taskInput = z.object({
   courseId: z.string().min(1),
@@ -30,7 +30,7 @@ export const taskInput = z.object({
   estimatedEffort: z.coerce.number().int().positive().max(600).optional().nullable(),
   source: z.string().max(240).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
-});
+}).strict();
 
 export const assignmentInput = z.object({
   courseId: z.string(),
@@ -44,7 +44,7 @@ export const assignmentInput = z.object({
   progress: boundedProgress.default(0),
   priority: z.enum(['CRITICAL', 'IMPORTANT', 'OPTIONAL']).default('IMPORTANT'),
   notes: z.string().max(4000).optional().nullable(),
-});
+}).strict();
 
 export const projectInput = z.object({
   courseId: z.string(),
@@ -58,7 +58,14 @@ export const projectInput = z.object({
   progress: boundedProgress.default(0),
   notes: z.string().max(4000).optional().nullable(),
   addDefaultMilestones: z.boolean().default(true),
-});
+}).strict();
+
+export const milestoneInput = z.object({
+  status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']).optional(),
+  title: z.string().trim().min(1).max(180).optional(),
+  notes: z.string().max(4000).optional().nullable(),
+  dueAt: optionalDate,
+}).strict();
 
 export const examInput = z.object({
   courseId: z.string(),
@@ -72,7 +79,7 @@ export const examInput = z.object({
   preparationStartAt: optionalDate,
   confidenceLevel: z.coerce.number().int().min(1).max(10).optional().nullable(),
   weight: z.coerce.number().min(0).max(100).optional().nullable(),
-});
+}).strict();
 
 export const gradeInput = z.object({
   courseId: z.string(),
@@ -83,7 +90,7 @@ export const gradeInput = z.object({
   weight: z.coerce.number().min(0).max(100).optional().nullable(),
   date: z.coerce.date(),
   notes: z.string().max(4000).optional().nullable(),
-});
+}).strict();
 
 export const weakTopicInput = z.object({
   courseId: z.string(),
@@ -91,6 +98,10 @@ export const weakTopicInput = z.object({
   description: z.string().max(4000).optional().nullable(),
   severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
   notes: z.string().max(4000).optional().nullable(),
+}).strict();
+
+export const weakTopicUpdateInput = weakTopicInput.partial().extend({
+  resolved: z.boolean().optional(),
 });
 
 export const checkOutInput = z.object({
@@ -103,7 +114,7 @@ export const checkOutInput = z.object({
   courseId: z.string().optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   selfRating: z.coerce.number().int().min(1).max(10).optional().nullable(),
-});
+}).strict();
 
 export const settingsInput = z.object({
   language: z.enum(['ar', 'en']).optional(),
@@ -116,7 +127,7 @@ export const settingsInput = z.object({
   firstReviewHours: z.coerce.number().int().min(6).max(168).optional(),
   focusModeManual: z.boolean().optional().nullable(),
   focusModeReason: z.string().max(240).optional().nullable(),
-});
+}).strict();
 
 export const semesterInput = z.object({
   name: z.string().min(2).max(120),
@@ -125,7 +136,7 @@ export const semesterInput = z.object({
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date(),
   isCurrent: z.boolean().optional(),
-}).refine((value) => value.endsAt > value.startsAt, {
+}).strict().refine((value) => value.endsAt > value.startsAt, {
   message: 'Semester end date must be after its start date',
   path: ['endsAt'],
 });
@@ -137,7 +148,7 @@ export const semesterUpdateInput = z.object({
   startsAt: z.coerce.date().optional(),
   endsAt: z.coerce.date().optional(),
   isCurrent: z.boolean().optional(),
-});
+}).strict();
 
 export const catalogCourseInput = z.object({
   courseCode: z.string().trim().min(1).max(40),
@@ -145,7 +156,7 @@ export const catalogCourseInput = z.object({
   nameEn: z.string().trim().min(2).max(180),
   defaultCredits: z.coerce.number().int().min(1).max(30),
   archived: z.boolean().optional().default(false),
-});
+}).strict();
 
 export const scheduleSlotInput = z.object({
   dayOfWeek: z.coerce.number().int().min(0).max(6),
@@ -153,7 +164,7 @@ export const scheduleSlotInput = z.object({
   endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   isOnline: z.boolean().default(false),
   location: z.string().trim().max(160).optional().nullable(),
-}).refine((value) => value.endsAt > value.startsAt, {
+}).strict().refine((value) => value.endsAt > value.startsAt, {
   message: 'End time must be after start time',
   path: ['endsAt'],
 });
@@ -164,7 +175,7 @@ export const assessmentComponentInput = z.object({
   weight: z.coerce.number().min(0).max(100).optional().nullable(),
   enabled: z.boolean().default(true),
   order: z.coerce.number().int().min(0),
-});
+}).strict();
 
 const enrollmentFields = z.object({
   credits: z.coerce.number().int().min(1).max(30),
@@ -178,7 +189,7 @@ const enrollmentFields = z.object({
   notes: z.string().max(4000).optional().nullable(),
   schedule: z.array(scheduleSlotInput).max(21).default([]),
   assessmentComponents: z.array(assessmentComponentInput).max(30).default([]),
-});
+}).strict();
 
 export const semesterCourseCreateInput = enrollmentFields.extend({
   courseId: z.string().min(1).optional(),

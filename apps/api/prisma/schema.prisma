@@ -141,6 +141,7 @@ model User {
   status            UserStatus       @default(ACTIVE)
   preferredLanguage String           @default("ar")
   lastLoginAt       DateTime?
+  twoFactorEnabled  Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   accounts          Account[]
@@ -153,9 +154,48 @@ model User {
   inviteCodes       InviteCode[]     @relation("InviteCreator")
   aiConversations   AIConversation[]
   aiUsage           AIUsage[]
+  twoFactor         TwoFactor?
+  securityAuditLogs SecurityAuditLog[] @relation("SecurityAuditActor")
 
   @@index([status])
   @@index([role])
+}
+
+model TwoFactor {
+  id                      String    @id @default(cuid())
+  userId                  String    @unique
+  secret                  String
+  backupCodes             String
+  verified                Boolean   @default(false)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+}
+
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@index([lastRequest])
+}
+
+model SecurityAuditLog {
+  id          String   @id @default(cuid())
+  event       String
+  actorUserId String?
+  targetType  String?
+  targetId    String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("SecurityAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([event, createdAt])
 }
 
 model Session {

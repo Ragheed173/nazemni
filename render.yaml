@@ -53,11 +53,3 @@ services:
         value: 7000
       - key: AI_MAX_CONCURRENT_PER_USER
         value: 1
-
-databases:
-  - name: nazemni-postgres
-    plan: free
-    region: frankfurt
-    postgresMajorVersion: "17"
-    databaseName: nazemni
-    user: nazemni

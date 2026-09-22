@@ -9,9 +9,11 @@ import {
   examInput,
   gradeInput,
   lectureInput,
+  milestoneInput,
   projectInput,
   taskInput,
   weakTopicInput,
+  weakTopicUpdateInput,
 } from '../schemas.js';
 
 export const entityRouter = Router();
@@ -346,12 +348,12 @@ entityRouter.patch('/projects/:id', async (req, res) => {
 
 entityRouter.patch('/milestones/:id', async (req, res) => {
   const userId = authUser(res).id;
-  const input = req.body as { status?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; title?: string; notes?: string; dueAt?: string | null };
+  const input = milestoneInput.parse(req.body);
   const existing = await prisma.projectMilestone.findFirst({ where: { id: req.params.id, project: { course: { semester: { userId } } } } });
   if (!existing) throw new AppError(404, 'Resource not found');
   const data = await prisma.projectMilestone.update({
     where: { id: existing.id },
-    data: { ...input, dueAt: input.dueAt ? new Date(input.dueAt) : input.dueAt, completedAt: input.status === 'COMPLETED' ? new Date() : input.status ? null : undefined },
+    data: { ...input, completedAt: input.status === 'COMPLETED' ? new Date() : input.status ? null : undefined },
   });
   const all = await prisma.projectMilestone.findMany({ where: { projectId: data.projectId } });
   await prisma.project.update({ where: { id: data.projectId }, data: { progress: Math.round(all.filter((x) => x.status === 'COMPLETED').length / all.length * 100) } });
@@ -478,11 +480,10 @@ entityRouter.post('/weak-topics', async (req, res) => {
 
 entityRouter.patch('/weak-topics/:id', async (req, res) => {
   const userId = authUser(res).id;
-  const input = weakTopicInput.partial().parse(req.body);
+  const { resolved, ...input } = weakTopicUpdateInput.parse(req.body);
   const existing = await prisma.weakTopic.findFirst({ where: { id: req.params.id, course: { semester: { userId } } } });
   if (!existing) throw new AppError(404, 'Resource not found');
   if (input.courseId) await ensureOwnedCourse(userId, input.courseId);
-  const resolved = typeof req.body.resolved === 'boolean' ? req.body.resolved : undefined;
   const data = await prisma.weakTopic.update({
     where: { id: existing.id },
     data: { ...input, resolved, resolvedAt: resolved === true ? new Date() : resolved === false ? null : undefined },

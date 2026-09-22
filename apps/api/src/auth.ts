@@ -4,11 +4,12 @@ import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { fromNodeHeaders } from 'better-auth/node';
-import { username } from 'better-auth/plugins';
+import { twoFactor, username } from 'better-auth/plugins';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { AppError } from './errors.js';
+import { isKnownWeakPassword, recordSecurityEvent } from './security.js';
 
 export type RegistrationMode = 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
 
@@ -30,6 +31,7 @@ export type AuthUser = {
   role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'DISABLED';
   preferredLanguage: string;
+  twoFactorEnabled: boolean;
   createdAt: Date;
 };
 
@@ -62,14 +64,25 @@ export function createNazemniAuth(options: AuthOptions) {
     session: {
       expiresIn: options.sessionTtlDays * 24 * 60 * 60,
       updateAge: 24 * 60 * 60,
+      freshAge: 15 * 60,
     },
     advanced: {
       useSecureCookies: options.secureCookie,
-      ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+      // Render sets the first X-Forwarded-For value to the real client IP.
+      // Never trust the separately client-spoofable x-vercel-forwarded-for header.
+      ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
       cookiePrefix: 'nazemni',
+      defaultCookieAttributes: {
+        httpOnly: true,
+        secure: options.secureCookie,
+        sameSite: 'lax',
+        path: '/',
+      },
     },
     rateLimit: {
       enabled: true,
+      storage: 'database',
+      modelName: 'rateLimit',
       window: 60,
       max: 60,
       customRules: {
@@ -96,18 +109,42 @@ export function createNazemniAuth(options: AuthOptions) {
     hooks: {
       after: createAuthMiddleware(async (context) => {
         if (context.path.startsWith('/sign-in') && context.context.newSession) {
+          const userId = context.context.newSession.user.id;
           await prisma.user.update({
-            where: { id: context.context.newSession.user.id },
+            where: { id: userId },
             data: { lastLoginAt: new Date() },
+          });
+          await recordSecurityEvent({ event: 'LOGIN_SUCCESS', actorUserId: userId });
+        }
+        if (context.path === '/two-factor/verify-totp' || context.path === '/two-factor/verify-backup-code') {
+          const userId = context.context.newSession?.user.id;
+          if (userId) {
+            await prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+            await recordSecurityEvent({ event: 'LOGIN_SUCCESS_2FA', actorUserId: userId });
+          }
+        }
+        if (context.path === '/two-factor/enable' || context.path === '/two-factor/disable') {
+          const userId = context.context.session?.user.id;
+          if (userId) await recordSecurityEvent({
+            event: context.path.endsWith('/enable') ? 'TWO_FACTOR_ENROLLMENT_STARTED' : 'TWO_FACTOR_DISABLED',
+            actorUserId: userId,
           });
         }
       }),
     },
-    plugins: [username({
-      minUsernameLength: 3,
-      maxUsernameLength: 64,
-      usernameValidator: (value) => /^[a-zA-Z0-9_.-]+$/.test(value),
-    })],
+    plugins: [
+      username({
+        minUsernameLength: 3,
+        maxUsernameLength: 64,
+        usernameValidator: (value) => /^[a-zA-Z0-9_.-]+$/.test(value),
+      }),
+      twoFactor({
+        issuer: 'Nazemni',
+        skipVerificationOnEnable: false,
+        accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 15 * 60 },
+        backupCodeOptions: { amount: 10, length: 12, storeBackupCodes: 'encrypted' },
+      }),
+    ],
   });
 }
 
@@ -139,6 +176,10 @@ export function requireAuthentication(auth: NazemniAuth): RequestHandler {
       }
       response.locals.authUser = user satisfies AuthUser;
       response.locals.authSession = session.session;
+      if (user.role === 'ADMIN' && !user.twoFactorEnabled
+        && !request.originalUrl.startsWith('/api/account/profile')) {
+        throw new AppError(403, 'Two-factor authentication setup is required', 'TWO_FACTOR_SETUP_REQUIRED');
+      }
       next();
     } catch (error) {
       next(error);
@@ -168,4 +209,8 @@ export const registrationInput = z.object({
   password: z.string().min(10).max(128),
   preferredLanguage: z.enum(['ar', 'en']).default('ar'),
   inviteCode: z.string().trim().max(128).optional(),
+}).strict().superRefine((value, context) => {
+  if (isKnownWeakPassword(value.password)) {
+    context.addIssue({ code: 'custom', path: ['password'], message: 'Choose a less common password' });
+  }
 });

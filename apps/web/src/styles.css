@@ -189,6 +189,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .settings-form { padding: 22px; }
 .settings-form h2 { padding-bottom: 15px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.security-notice { border-inline-start: 4px solid #a56400; }
+.security-notice p, .two-factor-setup p { margin-block: .4rem 0; }
+.two-factor-setup { display: grid; gap: 1rem; }
+.two-factor-qr { width: 220px; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: .5rem; }
+.totp-uri { display: block; margin-top: .5rem; max-width: 100%; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.backup-codes { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; background: #f7f8fa; }
+.backup-codes ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem 1rem; padding-inline-start: 1.5rem; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
 .field > span { font-size: .88rem; font-weight: 650; color: #3e454a; }
 .field > span small { font-weight: 400; color: var(--muted); }
@@ -354,6 +361,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .ai-messages { max-height: none; }
   .ai-message { max-width: 92%; }
   .schedule-editor > :nth-last-child(-n+2), .assessment-editor > :nth-last-child(-n+2) { grid-column: span 1; }
+  .backup-codes ul { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 440px) {
