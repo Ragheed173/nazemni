@@ -10,10 +10,18 @@ let lastRateLimitCleanup = 0;
 
 export function requireTrustedOrigin(origins: string[]): RequestHandler {
   const allowed = new Set(origins);
+  const allowedHosts = new Set(origins.map((origin) => new URL(origin).host));
+  const allowedProtocols = new Set(origins.map((origin) => new URL(origin).protocol.slice(0, -1)));
   return (request, _response, next) => {
     if (!unsafeMethods.has(request.method)) return next();
     const origin = request.get('origin');
     if (!origin || !allowed.has(origin)) return next(new AppError(403, 'Request origin is not allowed', 'INVALID_ORIGIN'));
+    const forwardedHosts = request.get('x-forwarded-host')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
+    const forwardedProtocols = request.get('x-forwarded-proto')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
+    if (forwardedHosts.some((host) => !allowedHosts.has(host))
+      || forwardedProtocols.some((protocol) => !allowedProtocols.has(protocol))) {
+      return next(new AppError(403, 'Request origin is not allowed', 'INVALID_ORIGIN'));
+    }
     next();
   };
 }

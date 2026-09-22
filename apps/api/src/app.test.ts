@@ -83,6 +83,35 @@ describe('application security boundary', () => {
     expect(response.body.error.code).toBe('INVALID_ORIGIN');
   });
 
+  it('rejects spoofed forwarding headers even when Origin itself is allowed', async () => {
+    const target = app();
+    const spoofedHost = await request(target)
+      .post('/api/auth/sign-out')
+      .set('Origin', 'http://localhost:5173')
+      .set('X-Forwarded-Host', 'evil.example')
+      .set('X-Forwarded-Proto', 'http')
+      .send({});
+    expect(spoofedHost.status).toBe(403);
+    expect(spoofedHost.body.error.code).toBe('INVALID_ORIGIN');
+
+    const spoofedProtocol = await request(target)
+      .post('/api/auth/sign-out')
+      .set('Origin', 'http://localhost:5173')
+      .set('X-Forwarded-Host', 'localhost:5173')
+      .set('X-Forwarded-Proto', 'https')
+      .send({});
+    expect(spoofedProtocol.status).toBe(403);
+    expect(spoofedProtocol.body.error.code).toBe('INVALID_ORIGIN');
+
+    const trustedForwarding = await request(target)
+      .post('/api/auth/sign-out')
+      .set('Origin', 'http://localhost:5173')
+      .set('X-Forwarded-Host', 'localhost:5173')
+      .set('X-Forwarded-Proto', 'http')
+      .send({});
+    expect(trustedForwarding.status).toBe(404);
+  });
+
   it('rejects oversized authentication bodies before Better Auth parses them', async () => {
     const response = await request(app())
       .post('/api/auth/sign-in/email')
