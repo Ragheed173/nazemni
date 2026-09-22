@@ -13,7 +13,7 @@
     "@hookform/resolvers": "^5.2.0",
     "@nazemni/shared": "1.0.0",
     "@tanstack/react-query": "^5.90.0",
-    "i18next": "^25.6.0",
+    "i18next": "^26.4.2",
     "lucide-react": "^0.553.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
